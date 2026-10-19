@@ -1,0 +1,45 @@
+{
+  "name": "nexus-launcher",
+  "productName": "Nexus",
+  "version": "1.0.0",
+  "description": "All-in-one launcher for apps, games and websites",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis"
+  },
+  "build": {
+    "appId": "local.nexus.launcher",
+    "productName": "Nexus",
+    "icon": "assets/icon.png",
+    "compression": "store",
+    "files": [
+      "main.js",
+      "shared/**",
+      "src/**",
+      "renderer/**",
+      "assets/**"
+    ],
+    "asarUnpack": [
+      "src/store-apps.ps1",
+      "src/extract-icons.ps1",
+      "src/launch-wuwa.ps1"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Nexus"
+    }
+  },
+  "devDependencies": {
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3"
+  }
+}

@@ -1,0 +1,94 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Nexus overlay</title>
+<style>
+  :root { --a: #7c5cff; --a2: #c06bff; --g: #35d07f; --r: #ff5d6c; --d: #9aa0ae; }
+  html, body { margin: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; font-family: "Segoe UI", system-ui, sans-serif; color: #fff; user-select: none; }
+  body.edit { background: rgba(5, 7, 12, .55); }
+  .w { position: absolute; left: 0; top: 0; transform-origin: 0 0; text-shadow: 0 1px 6px rgba(0, 0, 0, .9); opacity: 0; transition: opacity .45s; pointer-events: none; }
+  .w.show { opacity: var(--wo, 1); }
+  body.edit .w { pointer-events: auto; cursor: move; opacity: var(--wo, 1); outline: 1px dashed rgba(255, 255, 255, .45); outline-offset: 4px; }
+  body.edit .w.off { opacity: .3; }
+  body.edit .w.sel { outline: 2px solid var(--a); }
+  .card { padding: 10px 14px; border-radius: 12px; background: rgba(10, 12, 18, .72); border: 1px solid rgba(255, 255, 255, .14); font-size: 12px; text-shadow: none; }
+
+  /* music */
+  .music { display: flex; align-items: center; height: 112px; width: 400px; }
+  .disc-wrap { position: relative; width: 166px; height: 108px; flex: none; }
+  .disc { position: absolute; left: 0; top: 4px; width: 100px; height: 100px; border-radius: 50%;
+    background: conic-gradient(from 0deg, #bbb, #556 12%, #dfe 25%, #667 38%, #bbb 50%, #556 62%, #dfe 75%, #667 88%, #bbb);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, .55); animation: spin 3.2s linear infinite; animation-play-state: paused; }
+  .disc.play { animation-play-state: running; }
+  .disc::before { content: ""; position: absolute; inset: 29px; border-radius: 50%; background: var(--lbl, #333); border: 2px solid rgba(255, 255, 255, .35); }
+  .disc::after { content: ""; position: absolute; inset: 45px; border-radius: 50%; background: #0b0d12; border: 1px solid rgba(255, 255, 255, .5); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .cover { position: absolute; left: 52px; top: 0; width: 108px; height: 108px; border-radius: 10px; background: #1b1f2a center/cover; box-shadow: 0 8px 26px rgba(0, 0, 0, .6); border: 1px solid rgba(255, 255, 255, .18); }
+  .info { flex: 1; min-width: 0; margin-left: 6px; display: flex; flex-direction: column; gap: 4px; }
+  .bars { display: flex; align-items: flex-end; gap: 3px; height: 44px; }
+  .bars i { flex: 1; min-height: 3px; border-radius: 2px; background: linear-gradient(to top, var(--a), var(--a2)); box-shadow: 0 0 8px var(--a); }
+  .title { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .artist { font-size: 12px; opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: -2px; }
+  .prog { height: 5px; border-radius: 5px; background: rgba(255, 255, 255, .22); overflow: hidden; margin-top: 2px; }
+  .prog i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--a), var(--a2)); box-shadow: 0 0 10px var(--a); }
+  .times { display: flex; justify-content: space-between; font-size: 10px; opacity: .65; font-variant-numeric: tabular-nums; }
+
+  /* competitive record */
+  .rec { min-width: 220px; }
+  .rec .top { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; font-size: 11px; opacity: .7; text-transform: uppercase; letter-spacing: .6px; margin-bottom: 2px; }
+  .rec .score { font-size: 34px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .rec .score .W { color: var(--g); } .rec .score .L { color: var(--r); } .rec .score .D { color: var(--d); font-size: 22px; }
+  .rec .row { display: flex; gap: 14px; margin-top: 4px; font-size: 12px; }
+  .rec .row b { font-size: 14px; }
+  .meter { height: 6px; border-radius: 6px; background: rgba(255, 255, 255, .14); overflow: hidden; margin-top: 6px; display: flex; }
+  .meter i { display: block; height: 100%; } .meter .gw { background: var(--g); } .meter .gl { background: var(--r); }
+  .warn { margin-top: 6px; color: #ffcf5c; font-weight: 600; font-size: 12px; }
+
+  /* last games */
+  .last { display: flex; gap: 6px; align-items: center; padding: 8px 12px; }
+  .last small { font-size: 10px; text-transform: uppercase; letter-spacing: .6px; opacity: .6; margin-right: 4px; }
+  .pill { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; font-weight: 800; font-size: 14px; color: #0b0d12; }
+  .pill.pw { background: var(--g); } .pill.pl { background: var(--r); } .pill.pd { background: var(--d); } .pill.e { background: rgba(255, 255, 255, .12); color: transparent; }
+
+  /* rank progress per role */
+  .gain { min-width: 230px; }
+  .gtop { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; font-size: 11px; text-transform: uppercase; letter-spacing: .6px; opacity: .85; margin-bottom: 4px; }
+  .gtop b { font-size: 22px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+  .grow { display: grid; grid-template-columns: 70px 1fr auto; gap: 10px; align-items: baseline; padding: 2px 0; font-size: 13px; }
+  .grow .gn { font-weight: 700; } .grow .gr { opacity: .6; font-size: 11px; } .grow b { font-size: 16px; font-variant-numeric: tabular-nums; }
+  .gain .up { color: var(--g); } .gain .down { color: var(--r); }
+
+  /* Overwatch career */
+  .ow { min-width: 250px; }
+  .ow h4 { margin: 0 0 6px; font-size: 13px; display: flex; gap: 8px; align-items: baseline; }
+  .ow h4 small { font-weight: 400; opacity: .6; }
+  .ranks { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+  .rank { padding: 2px 8px; border-radius: 20px; background: rgba(255, 255, 255, .1); font-weight: 600; text-transform: capitalize; }
+  .stats { display: grid; grid-template-columns: repeat(4, auto); gap: 2px 14px; margin-bottom: 6px; }
+  .stats b { display: block; font-size: 15px; }
+  .stats span { opacity: .6; font-size: 10px; text-transform: uppercase; letter-spacing: .5px; }
+  .hero { display: flex; justify-content: space-between; gap: 14px; padding: 1px 0; text-transform: capitalize; }
+  .hero span { opacity: .7; }
+
+  /* session and clock */
+  .sess { display: flex; gap: 18px; }
+  .sess div { display: flex; flex-direction: column; } .sess b { font-size: 20px; font-variant-numeric: tabular-nums; } .sess span { font-size: 10px; text-transform: uppercase; letter-spacing: .6px; opacity: .6; }
+  .clock { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; padding: 6px 14px; }
+
+  #toast { position: fixed; left: 50%; top: 60px; transform: translate(-50%, -10px); padding: 10px 22px; border-radius: 30px; background: rgba(10, 12, 18, .85); border: 1px solid var(--a); font-weight: 700; opacity: 0; transition: opacity .25s, transform .25s; }
+  #toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+  /* edit mode panel */
+  #bar { position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%); display: none; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; max-width: 80vw;
+    padding: 12px 16px; border-radius: 16px; background: rgba(14, 17, 25, .96); border: 1px solid rgba(255, 255, 255, .18); font-size: 13px; text-shadow: none; }
+  body.edit #bar { display: flex; }
+  #bar label { display: flex; gap: 6px; align-items: center; cursor: pointer; padding: 4px 8px; border-radius: 8px; background: rgba(255, 255, 255, .06); }
+  #bar button { font: inherit; color: #fff; border: 0; padding: 7px 14px; border-radius: 9px; background: rgba(255, 255, 255, .12); cursor: pointer; }
+  #bar button.primary { background: linear-gradient(90deg, var(--a), var(--a2)); font-weight: 700; }
+  #bar .hint { opacity: .6; font-size: 12px; width: 100%; text-align: center; }
+  #bar input[type=range] { width: 110px; }
+</style></head>
+<body>
+<div id="stage"></div>
+<div id="toast"></div>
+<div id="bar"></div>
+<script src="overlay.js"></script>
+</body></html>

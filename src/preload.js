@@ -1,0 +1,54 @@
+const { contextBridge, ipcRenderer } = require('electron');
+
+const EVENTS = ['library:updated', 'focus-search', 'state:update', 'navigate', 'launch:done', 'launch:phase', 'launch:update', 'barca:updated', 'matches:updated', 'news:updated', 'lock'];
+
+contextBridge.exposeInMainWorld('api', {
+  getPrefs: () => ipcRenderer.invoke('prefs:get'),
+  getLibrary: (rescan) => ipcRenderer.invoke('library:get', rescan),
+  getInfo: (id) => ipcRenderer.invoke('game:info', id),
+  getIcon: (filePath) => ipcRenderer.invoke('icon:get', filePath),
+  launch: (id) => ipcRenderer.invoke('item:launch', id),
+  skipLaunchWait: () => ipcRenderer.invoke('launch:skip'),
+  unlock: () => ipcRenderer.invoke('lock:release'),
+  shellStatus: () => ipcRenderer.invoke('shell:status'),
+  shellEnable: () => ipcRenderer.invoke('shell:enable'),
+  shellDisable: () => ipcRenderer.invoke('shell:disable'),
+  windowsDesktop: () => ipcRenderer.invoke('shell:desktop'),
+  getBarca: (force) => ipcRenderer.invoke('barca:get', force),
+  getNews: (force) => ipcRenderer.invoke('news:get', force),
+  newsSeen: (id) => ipcRenderer.invoke('news:seen', id),
+  badgesSeen: (quiet, fresh, total) => ipcRenderer.invoke('badges:seen', quiet, fresh, total),
+  previewBadge: () => ipcRenderer.invoke('badges:preview'),
+  action: (id, kind) => ipcRenderer.invoke('item:action', id, kind),
+  setPref: (kind, id, value) => ipcRenderer.invoke('pref:set', kind, id, value),
+  addCustom: (data) => ipcRenderer.invoke('custom:add', data),
+  pickFile: () => ipcRenderer.invoke('dialog:pickFile'),
+  openExternal: (url) => ipcRenderer.invoke('open:external', url),
+
+  setSetting: (key, value) => ipcRenderer.invoke('setting:set', key, value),
+  setHotkey: (accel) => ipcRenderer.invoke('hotkey:set', accel),
+  resetSettings: () => ipcRenderer.invoke('settings:reset'),
+  gacha: (key, op, payload) => ipcRenderer.invoke('gacha:op', key, op, payload),
+
+  hide: () => ipcRenderer.invoke('window:hide'),
+  setFullscreen: (on) => ipcRenderer.invoke('window:fullscreen', on),
+  setTitlebar: (color, symbolColor) => ipcRenderer.invoke('window:titlebar', color, symbolColor),
+
+  exportData: () => ipcRenderer.invoke('data:export'),
+  importData: () => ipcRenderer.invoke('data:import'),
+  clearCache: () => ipcRenderer.invoke('data:clearCache'),
+  resetPlaytime: () => ipcRenderer.invoke('data:resetPlaytime'),
+  owProfile: () => ipcRenderer.invoke('ow:profile'),
+  matchesList: () => ipcRenderer.invoke('matches:list'),
+  matchesAdd: (p) => ipcRenderer.invoke('matches:add', p),
+  matchesUpdate: (id, p) => ipcRenderer.invoke('matches:update', id, p),
+  matchesDelete: (id) => ipcRenderer.invoke('matches:delete', id),
+  overlayEdit: () => ipcRenderer.invoke('overlay:edit'),
+  overlayResetToday: () => ipcRenderer.invoke('overlay:resetToday'),
+  overlayResetLayout: () => ipcRenderer.invoke('overlay:resetLayout'),
+  overlayStats: () => ipcRenderer.invoke('overlay:stats'),
+  openDataFolder: () => ipcRenderer.invoke('data:openFolder'),
+
+  // Events carry at most one argument (the payload from the main process)
+  on: (event, fn) => { if (EVENTS.includes(event)) ipcRenderer.on(event, (_e, payload) => fn(payload)); },
+});

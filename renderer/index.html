@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <title>Nexus</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style-v2.css">
+  <link rel="stylesheet" href="style-v3.css">
+  <link rel="stylesheet" href="style-v4.css">
+  <link rel="stylesheet" href="style-v5.css">
+  <link rel="stylesheet" href="style-v6.css">
+  <link rel="stylesheet" href="style-v7.css">
+</head>
+<body>
+  <div id="boot" class="boot"><div class="boot-inner"><div class="boot-logo"></div><div class="boot-name">NEXUS</div><div class="boot-bar"><i></i></div></div></div>
+  <div class="titlebar"><span class="brand"><span class="logo"></span>Nexus</span></div>
+
+  <aside class="sidebar">
+    <nav id="nav">
+      <button data-view="home" class="active"><svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</button>
+      <button data-view="games"><svg viewBox="0 0 24 24"><path d="M7 7h10a5 5 0 0 1 4.9 6l-.7 3.3a2.5 2.5 0 0 1-4.3 1.2L14.5 15h-5l-2.4 2.5a2.5 2.5 0 0 1-4.3-1.2L2.1 13A5 5 0 0 1 7 7zm1 3v1.5H6.5v1.5H8v1.5h1.5V13H11v-1.5H9.5V10zm7.5 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm2 2a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></svg>Games<span class="count" data-count="game"></span></button>
+      <button data-view="apps"><svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zm9 0h7v7h-7zM4 13h7v7H4zm9 0h7v7h-7z"/></svg>Apps<span class="count" data-count="app"></span></button>
+      <button data-view="web"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm6.9 6h-3a15 15 0 0 0-1.3-3.9A8 8 0 0 1 18.9 8zM12 4c.8 1.1 1.6 2.4 2 4h-4c.4-1.6 1.2-2.9 2-4zM4.3 14a8 8 0 0 1 0-4h3.4a16 16 0 0 0 0 4zm.8 2h3a15 15 0 0 0 1.3 3.9A8 8 0 0 1 5.1 16zm3-8h-3a8 8 0 0 1 4.3-3.9C8.8 5.3 8.4 6.6 8.1 8zM12 20c-.8-1.1-1.6-2.4-2-4h4c-.4 1.6-1.2 2.9-2 4zm2.3-6H9.7a14 14 0 0 1 0-4h4.6a14 14 0 0 1 0 4zm.3 5.9c.6-1.2 1-2.5 1.3-3.9h3a8 8 0 0 1-4.3 3.9zM16.3 14a16 16 0 0 0 0-4h3.4a8 8 0 0 1 0 4z"/></svg>Websites<span class="count" data-count="web"></span></button>
+      <button data-view="favorites"><svg viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2-5.5-2.9-5.5 2.9 1-6.2L3 9.6l6.2-.9z"/></svg>Favourites</button>
+      <div class="nav-sep"></div>
+      <button data-view="stats"><svg viewBox="0 0 24 24"><path d="M4 20V10h3.5v10zm6.25 0V4h3.5v16zM16.5 20v-7H20v7z"/></svg>Stats</button>
+      <div class="nav-sep"></div>
+      <button data-view="barca"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2c.9 0 1.8.2 2.6.5L12 6.4 9.4 4.5A8 8 0 0 1 12 4zM6.3 6.2l2.3.5.9 2.5-2.2 2-2.6-.6A8 8 0 0 1 6.3 6.2zm11.4 0a8 8 0 0 1 2 4.4l-2.6.6-2.2-2 .9-2.5zM12 8.6l2.5 1.8-.9 3H10.4l-.9-3zM4.4 14l2.1.6 1.1 2.7-1.4 2A8 8 0 0 1 4.4 14zm15.2 0a8 8 0 0 1-1.8 5.3l-1.4-2 1.1-2.7zM9.9 16.2h4.2l1 2.6a8 8 0 0 1-6.2 0z"/></svg>Barça</button>
+      <button data-view="news"><svg viewBox="0 0 24 24"><path d="M4 5h13a1 1 0 0 1 1 1v12.5a1.5 1.5 0 0 0 3 0V9h-2V7h3a1 1 0 0 1 1 1v10.5a3.5 3.5 0 0 1-3.5 3.5H6a3 3 0 0 1-3-3V6a1 1 0 0 1 1-1zm2 3v2h9V8zm0 4v2h9v-2zm0 4v2h6v-2z"/></svg>News<i class="nav-dot" id="newsDot" hidden></i></button>
+      <button data-view="overwatch" hidden><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 3a7 7 0 0 1 6.7 5H16l-2.2-3.2L12 10 9.5 7 7.3 10H5.3A7 7 0 0 1 12 5zm0 14a7 7 0 0 1-6.9-6h3.7l1.6 2.6L12 12.4l1.7 3.2 1.5-2.6h3.7A7 7 0 0 1 12 19z"/></svg>Overwatch</button>
+      <button data-view="gacha" hidden><svg viewBox="0 0 24 24"><path d="m12 2 2.3 6.2L21 10.5l-6.7 2.3L12 19l-2.3-6.2L3 10.5l6.7-2.3zM19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg>Gacha</button>
+    </nav>
+    <div id="nowStatus" class="now-status"></div>
+    <div class="sidebar-bottom">
+      <button id="pickBtn" title="Spin the wheel (Ctrl+R)"><svg viewBox="0 0 24 24"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm3 4a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm8 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm-4 3.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM8 14a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm8 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/></svg>Pick a game</button>
+      <button id="bigBtn" title="Fullscreen couch mode (F11)"><svg viewBox="0 0 24 24"><path d="M3 5h18a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-7v2h3v2H7v-2h3v-2H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm1 2v9h16V7z"/></svg>Big screen</button>
+      <button id="desktopBtn" hidden title="Switch to the Windows desktop (taskbar and Start menu)"><svg viewBox="0 0 24 24"><path d="M3 4h18a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-7l1 3h2v2H8v-2h2l1-3H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zm1 2v9h16V6z"/></svg>Windows desktop</button>
+      <button id="addBtn"><svg viewBox="0 0 24 24"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>Add</button>
+      <button data-view="settings"><svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-1.7-1L15 3.5h-4L10.7 6a7 7 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 1.7 1l.3 2.5h4l.3-2.5a7 7 0 0 0 1.7-1l2.4 1 2-3.4zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>Settings</button>
+    </div>
+  </aside>
+
+  <main>
+    <div class="page-bg" id="pageBg"></div>
+    <header class="topbar">
+      <div class="search">
+        <svg viewBox="0 0 24 24"><path d="M10 3a7 7 0 0 1 5.6 11.2l5.1 5.1-1.4 1.4-5.1-5.1A7 7 0 1 1 10 3zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10z"/></svg>
+        <input id="search" placeholder="Search games, apps and websites…" autocomplete="off" spellcheck="false">
+        <kbd id="hotkeyHint"></kbd>
+      </div>
+    </header>
+    <section id="content" class="content"><div class="loading"><div class="spinner"></div>Scanning your library…</div></section>
+  </main>
+
+  <div id="detail" class="detail" hidden></div>
+  <div id="picker" class="picker" hidden></div>
+  <div id="big" class="big" tabindex="-1" hidden></div>
+  <div id="lightbox" class="lightbox" hidden>
+    <button class="lb-nav prev" data-dir="-1">‹</button>
+    <img id="lbImg" alt="">
+    <button class="lb-nav next" data-dir="1">›</button>
+    <div id="lbCount" class="lb-count"></div>
+  </div>
+  <div id="menu" class="menu" hidden></div>
+  <div id="modal" class="modal-backdrop" hidden><div class="modal" id="modalBody"></div></div>
+  <div id="toast" class="toast"></div>
+  <canvas id="fx" class="fx"></canvas>
+
+  <script src="../shared/gacha-data.js"></script>
+  <script src="util.js"></script>
+  <script src="theme.js"></script>
+  <script src="tips.js"></script>
+  <script src="stats.js"></script>
+  <script src="tags.js"></script>
+  <script src="barca.js"></script>
+  <script src="news.js"></script>
+  <script src="../shared/ow-data.js"></script>
+  <script src="gacha-ui.js"></script>
+  <script src="ow-ui.js"></script>
+  <script src="sound.js"></script>
+  <script src="picker.js"></script>
+  <script src="bigscreen.js"></script>
+  <script src="settings-ui.js"></script>
+  <script src="fx-v6.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

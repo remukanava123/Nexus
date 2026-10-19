@@ -1,0 +1,12 @@
+# dependencies and build output
+node_modules/
+dist*/
+out/
+
+# personal / local only: never publish
+HANDOFF.md
+library.json
+*.backup.json
+.claude/
+scratchpad/
+*.log
