@@ -2,7 +2,10 @@
   "name": "nexus-launcher",
   "productName": "Nexus",
   "version": "1.0.0",
-  "author": "remukanavajaclaude <remmukannava@gmail.com>",
+  "author": {
+    "name": "remukanava",
+    "email": "remmukannava@gmail.com"
+  },
   "description": "All-in-one launcher for apps, games and websites",
   "main": "main.js",
   "scripts": {
