@@ -1,6 +1,6 @@
 // Main renderer: library views, search, game pages, menus. (Helpers are in util.js; features in their own files.)
 const SOURCES = {
-  steam: 'Steam', epic: 'Epic', battlenet: 'Battle.net', hoyoplay: 'HoYoPlay', kuro: 'Kuro Games',
+  steam: 'Steam', epic: 'Epic', gog: 'GOG', heroic: 'Heroic', lutris: 'Lutris', desktop: 'Installed', battlenet: 'Battle.net', hoyoplay: 'HoYoPlay', kuro: 'Kuro Games',
   custom: 'Custom', app: 'App', web: 'Website',
 };
 const PLAY = '<svg viewBox="0 0 24 24"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/></svg>';
@@ -499,6 +499,7 @@ function leaveFx(it) {
   const box = $('.leave-tip', el);
   const showTip = () => {
     const t = tips[n++ % tips.length];
+    markTipSeen(t);
     box.classList.remove('in');
     setTimeout(() => { $('.tip-tag', box).textContent = t.tag; $('.tip-text', box).textContent = t.text; box.classList.add('in'); }, box.dataset.ready ? 350 : 0);
     box.dataset.ready = '1';
@@ -611,7 +612,7 @@ function openDetail(id) {
         <div class="detail-sub">${playLine(it)}</div>
         <div class="detail-stats">${gameStatsHtml(it)}</div>
         ${it.type === 'game' ? `<div class="detail-tags">${tagEditorHtml(it)}</div>` : ''}
-        ${it.type === 'game' && it.launch && it.launch.kind === 'exe' ? `<label class="detail-noadmin"><input type="checkbox" data-noadmin ${prefs.noAdmin && prefs.noAdmin[it.id] ? 'checked' : ''}> Skip the Windows admin prompt <small>Starts the game without admin rights. Some games or anti-cheats need them, so if it won't start, turn this off.</small></label>` : ''}
+        ${it.type === 'game' && it.launch && it.launch.kind === 'exe' && window.api.platform !== 'linux' ? `<label class="detail-noadmin"><input type="checkbox" data-noadmin ${prefs.noAdmin && prefs.noAdmin[it.id] ? 'checked' : ''}> Skip the Windows admin prompt <small>Starts the game without admin rights. Some games or anti-cheats need them, so if it won't start, turn this off.</small></label>` : ''}
         <div class="detail-actions">
           <button class="play-btn" data-act="play">${PLAY} ${isRunning(it.id) ? 'Open' : 'Play'}</button>
           ${it.alt ? `<button class="btn" data-act="alt">${esc(it.alt.label)}</button>` : ''}

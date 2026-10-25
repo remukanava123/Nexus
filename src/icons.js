@@ -20,6 +20,7 @@ function cacheKey(file, index) {
 
 // requests: [{ id, path, index }] -> Map(id -> png file path), for the ones that worked
 async function extractIcons(requests, outDir) {
+  if (process.platform !== 'win32') return new Map(); // Linux apps bring their own icons
   const todo = [];
   const result = new Map();
   for (const r of requests) {

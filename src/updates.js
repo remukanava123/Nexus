@@ -53,6 +53,13 @@ class NetMonitor {
   }
 
   start() {
+    if (process.platform === 'linux') {
+      const linux = require('./linux');
+      const sample = () => { const bytes = linux.netBytes(); if (bytes <= 0) return; if (this.base === null) this.base = bytes; this.samples.push({ t: Date.now(), bytes }); while (this.samples.length > 60) this.samples.shift(); };
+      sample();
+      this.timer = setInterval(sample, 1000);
+      return this;
+    }
     this.child = spawn(POWERSHELL, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(NET_SCRIPT, 'utf16le').toString('base64')], { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
     let buf = '';
     this.child.stdout.on('data', (d) => {
@@ -71,7 +78,7 @@ class NetMonitor {
     return this;
   }
 
-  stop() { try { if (this.child) this.child.kill(); } catch {} this.child = null; }
+  stop() { try { if (this.child) this.child.kill(); } catch {} this.child = null; clearInterval(this.timer); this.timer = null; }
 
   // Bytes per second over the last `windowMs`, and bytes received since start()
   speed(windowMs = 4000) {

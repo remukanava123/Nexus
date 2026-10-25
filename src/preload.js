@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 const EVENTS = ['library:updated', 'focus-search', 'state:update', 'navigate', 'launch:done', 'launch:phase', 'launch:update', 'barca:updated', 'matches:updated', 'news:updated', 'lock'];
 
 contextBridge.exposeInMainWorld('api', {
+  platform: process.platform,
   getPrefs: () => ipcRenderer.invoke('prefs:get'),
   getLibrary: (rescan) => ipcRenderer.invoke('library:get', rescan),
   getInfo: (id) => ipcRenderer.invoke('game:info', id),

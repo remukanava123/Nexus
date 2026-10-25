@@ -14,7 +14,7 @@ const startOfToday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); retur
 function createOverlay({ electron, store, runningNames, onMatches }) {
   const { BrowserWindow, screen, ipcMain, desktopCapturer, net, globalShortcut } = electron;
   let win = null, mediaJob = null, lastMedia = null, lastThumb = '', lastCover = '', manual = null, editing = false;
-  let owTimer = null, owFor = '', owData = null;
+  let owTimer = null, owFor = '', owData = null, idleTimer = null;
   let sessionGame = '', sessionStart = 0;
   const coverCache = new Map();
   let coverKey = '', coverTimer = null;
@@ -208,6 +208,7 @@ function createOverlay({ electron, store, runningNames, onMatches }) {
     const want = editing || (s.overlay && (manual !== null ? manual : names.length > 0));
     if (!s.overlay || !s.overlayMusic) stopMedia(); else if (want) startMedia();
     syncOw(names);
+    clearTimeout(idleTimer); idleTimer = null;
     if (want) {
       const w = ensureWindow();
       const d = screen.getPrimaryDisplay();
@@ -215,7 +216,11 @@ function createOverlay({ electron, store, runningNames, onMatches }) {
       sendAll();
       if (!w.isVisible()) w.showInactive();
       w.setAlwaysOnTop(true, 'screen-saver');
-    } else if (win && !win.isDestroyed() && win.isVisible()) win.hide();
+    } else if (win && !win.isDestroyed()) {
+      if (win.isVisible()) win.hide();
+      // a hidden overlay still holds a whole page in memory: close it after a minute and rebuild it when it is next needed
+      idleTimer = setTimeout(() => { if (win && !win.isDestroyed() && !win.isVisible() && !editing) win.destroy(); }, 60000);
+    }
     if (!want && !names.length) stopMedia();
   }
 

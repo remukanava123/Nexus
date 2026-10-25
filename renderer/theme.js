@@ -63,3 +63,6 @@ function applyTheme(s) {
 
   window.api.setTitlebar(t.bg, '#9aa0ae');
 }
+
+// While Nexus can't be seen (hidden, minimised, or covered by a fullscreen game) nothing should keep animating or blurring
+document.addEventListener('visibilitychange', () => document.body && document.body.classList.toggle('idle', document.hidden));

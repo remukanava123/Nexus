@@ -4,6 +4,7 @@ const { spawn } = require('child_process');
 const { EventEmitter } = require('events');
 const fs = require('fs');
 const path = require('path');
+const IS_LINUX = process.platform === 'linux';
 
 const POWERSHELL = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
 const INTERVAL_SECONDS = 8;
@@ -35,8 +36,16 @@ class Tracker extends EventEmitter {
   }
 
   start() {
-    if (this.child) return;
+    if (this.child || this.timer) return;
     this.stopped = false;
+    if (IS_LINUX) {
+      // No helper process on Linux: the running programs are read straight from /proc
+      const linux = require('./linux');
+      const tick = async () => { try { this.onSnapshot(await linux.snapshot()); } catch {} };
+      tick();
+      this.timer = setInterval(tick, INTERVAL_SECONDS * 1000);
+      return;
+    }
     this.child = spawn(POWERSHELL, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', SCRIPT], { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
     this.child.stdout.setEncoding('utf8');
     this.child.stdout.on('data', (chunk) => {
@@ -58,6 +67,7 @@ class Tracker extends EventEmitter {
   stop() {
     this.stopped = true;
     clearTimeout(this.restartTimer);
+    clearInterval(this.timer); this.timer = null;
     if (this.child) { try { this.child.kill(); } catch {} this.child = null; }
     this.finishAll();
   }
@@ -122,6 +132,7 @@ class Tracker extends EventEmitter {
 
 // Turn the scanned game list into the folders / files to look for
 function watchList(items) {
+  if (IS_LINUX) return watchListLinux(items);
   return items.filter((i) => i.type === 'game' && i.location).map((i) => {
     const loc = i.location.toLowerCase();
     let isFile = /\.(exe|lnk|bat|cmd)$/i.test(loc);
@@ -129,6 +140,17 @@ function watchList(items) {
     // Process names to fall back on when Windows won't tell us the path (only used for path-less processes)
     const names = (i.procNames || [i.iconPath]).filter((n) => n && /\.exe$/i.test(n)).map((n) => path.basename(n).toLowerCase()).filter((n) => !/^(launcher|setup|update)/.test(n));
     return { id: i.id, name: i.name, dirs: isFile ? [] : [loc.endsWith('\\') ? loc : `${loc}\\`], exes: isFile ? [loc] : [], names };
+  });
+}
+
+// Linux paths are case-sensitive, but the snapshot is lower-cased like on Windows, so these are too
+function watchListLinux(items) {
+  return items.filter((i) => i.type === 'game' && (i.location || i.procNames)).map((i) => {
+    const loc = (i.location || '').toLowerCase();
+    let isFile = false;
+    try { isFile = !!loc && fs.statSync(i.location).isFile(); } catch {}
+    const names = (i.procNames || []).map((n) => String(n).toLowerCase().replace(/.exe$/, ''));
+    return { id: i.id, name: i.name, dirs: loc && !isFile ? [loc.endsWith('/') ? loc : `${loc}/`] : [], exes: isFile ? [loc] : [], names };
   });
 }
 

@@ -311,6 +311,7 @@ async function scanApps(shell) {
 
 // Game names already detected by a launcher scan shouldn't also appear as plain apps
 async function scanAll(shell) {
+  if (process.platform === 'linux') return require('./linux').scanAll();
   uninstallCache = null;
   const safe = (p) => p.catch((e) => { console.error(e); return []; });
   const [steam, epic, bnet, hoyo, wuwa, apps] = await Promise.all(

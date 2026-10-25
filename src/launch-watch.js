@@ -210,7 +210,7 @@ while ($true) {
   $s = $snd.ToString('0.0000', $inv)
   if ($best) { $out.WriteLine("$best|$s|$bestTitle") } else { $out.WriteLine("N|$s") }
   $out.Flush()
-  Start-Sleep -Milliseconds 600
+  Start-Sleep -Milliseconds $(if ($env:NX_INTERVAL) { [int]$env:NX_INTERVAL } else { 600 })
 }`;
 
 const enc = (script) => Buffer.from(script, 'utf16le').toString('base64');
@@ -254,10 +254,11 @@ class Settler {
 
 // Starts the poller. onSample(sample or null, sound 0..1) every ~0.6s. With { audio: true } it also measures the
 // game's sound (otherwise sound is always 0). Returns { stop() }.
-function startWatch(spec, extraNames, onSample, { audio = false } = {}) {
+function startWatch(spec, extraNames, onSample, { audio = false, interval = 600 } = {}) {
+  if (process.platform === 'linux') return require('./linux').startWatch(spec, extraNames, onSample);
   const child = spawn(POWERSHELL, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', enc(WATCH_SCRIPT)], {
     windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'],
-    env: { ...process.env, NX_DIRS: spec.dirs.join('|'), NX_EXES: spec.exes.join('|'), NX_NAMES: [...spec.names, ...extraNames].join('|'), NX_AUDIO: audio ? '1' : '0' },
+    env: { ...process.env, NX_DIRS: spec.dirs.join('|'), NX_EXES: spec.exes.join('|'), NX_NAMES: [...spec.names, ...extraNames].join('|'), NX_AUDIO: audio ? '1' : '0', NX_INTERVAL: String(interval) },
   });
   let buf = '';
   child.stdout.on('data', (d) => {
@@ -289,6 +290,7 @@ const isHwnd = (h) => /^\d+$/.test(String(h));
 
 // One-off: raise a window (by handle) to the foreground. Resolves true when it ended up in front.
 async function bringToFront(hwnd) {
+  if (process.platform !== 'win32') return false;
   if (!isHwnd(hwnd)) return false;
   return /true/i.test(await runWin32(`[NX]::Front([IntPtr]${hwnd})`, 6000));
 }
@@ -296,6 +298,7 @@ async function bringToFront(hwnd) {
 // Slip window "me" in right behind "target" (raising the target first), or with no target behind whatever opens
 // next (waiting up to waitMs for it; since = when the app was launched). Resolves { front, placed }.
 async function placeBehind(me, target, { raise = true, waitMs = 0, since = 0 } = {}) {
+  if (process.platform !== 'win32') return { front: false, placed: false };
   if (!isHwnd(me)) return { front: false, placed: false };
   const t = isHwnd(target) ? target : 0;
   const out = await runWin32(`[NX]::Behind([IntPtr]${me}, [IntPtr]${t}, $${raise ? 'true' : 'false'}, ${Math.round(waitMs)}, ${since ? Math.round(Date.now() - since + 3000) : 0})`, waitMs + 8000);

@@ -61,6 +61,7 @@ while ($true) {
 // onUpdate(info) with info = { ok, title, artist, album, app, playing, pos, dur, at, key, thumb? }.
 // thumb is only present when the track changed; keep the last one.
 function start(onUpdate) {
+  if (process.platform === 'linux') return require('./linux').startMedia(onUpdate);
   const enc = Buffer.from(SCRIPT, 'utf16le').toString('base64');
   const child = spawn(POWERSHELL, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', enc], { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
   let buf = '';

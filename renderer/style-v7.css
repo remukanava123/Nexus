@@ -44,3 +44,6 @@
 .ow-hrow.head { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .8px; }
 .ow-hrow.missing { background: linear-gradient(90deg, rgba(249, 158, 26, .07), transparent); }
 .ow-when em { font-style: normal; font-size: 10px; padding: 1px 6px; border-radius: 10px; background: var(--surface-3); color: var(--muted); margin-left: 4px; }
+
+/* not visible: stop every animation and blur so Nexus costs next to nothing behind a game */
+body.idle *, body.idle *::before, body.idle *::after { animation-play-state: paused !important; transition: none !important; backdrop-filter: none !important; }

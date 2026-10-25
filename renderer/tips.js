@@ -542,5 +542,19 @@ function tipsFor(name) {
   for (const [re, tips] of GAME_TIPS) if (re.test(name || '')) own.push(...tips.map((text) => ({ tag: 'Game tip', text: text.replace(/^[^—]+— /, '') })));
   for (const [re, tips] of [...GAME_EXTRA, ...GAME_FUN]) if (re.test(name || '')) own.push(...tips);
   const tt = timeTip();
-  return [...shuffle(own), ...(tt ? [tt] : []), ...shuffle([...GENERAL_TIPS, ...GENERAL_FUN])];
+  // lines you saw recently go to the back, so a launch is not the same few lines as the last one
+  const seen = seenTips();
+  const fresh = (list) => { const s = shuffle(list); return [...s.filter((t) => !seen.has(t.text)), ...s.filter((t) => seen.has(t.text))]; };
+  const mine = fresh(own), rest = fresh([...GENERAL_TIPS, ...GENERAL_FUN]);
+  const out = [];
+  if (tt) out.push(tt);
+  // two of the game's own lines, then one general one, so a game with plenty of lines still gets some variety
+  while (mine.length || rest.length) { for (let i = 0; i < 2 && mine.length; i++) out.push(mine.shift()); if (rest.length) out.push(rest.shift()); }
+  return out;
+}
+
+const SEEN_KEY = 'nexus.tipsSeen';
+function seenTips() { try { return new Set(JSON.parse(localStorage.getItem(SEEN_KEY) || '[]')); } catch { return new Set(); } }
+function markTipSeen(t) {
+  try { const l = [...seenTips().add(t.text)]; localStorage.setItem(SEEN_KEY, JSON.stringify(l.slice(-400))); } catch {}
 }

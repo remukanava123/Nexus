@@ -98,6 +98,7 @@ const SETTINGS_SCHEMA = [
     { key: 'notifyReset', label: 'Notify at daily reset', type: 'toggle' },
   ] },
   { id: 'data', title: 'Data & maintenance', icon: '🧰', rows: [
+    { key: 'lowResource', label: 'Low resource mode', desc: 'Turns off graphics acceleration to free some memory. The interface may feel a little less smooth. Takes effect after restarting Nexus; the animation and blur switches under Appearance save even more', type: 'toggle' },
     { type: 'action', label: 'Rescan library', desc: 'Look for newly installed games and apps', button: 'Rescan', act: 'rescan' },
     { type: 'action', label: 'Restore hidden items', desc: () => `${prefs.hidden.length} hidden`, button: 'Restore all', act: 'unhide', disabled: () => !prefs.hidden.length },
     { type: 'action', label: 'Back up your data', desc: 'Favourites, playtime, gacha progress, settings', button: 'Export…', act: 'export' },
@@ -108,6 +109,17 @@ const SETTINGS_SCHEMA = [
     { type: 'action', label: 'Data folder', desc: 'Where Nexus keeps its files', button: 'Open', act: 'openFolder' },
   ] },
 ];
+
+// Linux (Fedora, Bazzite): drop what only exists on Windows and reword the rest
+if (window.api.platform === 'linux') {
+  SETTINGS_SCHEMA.splice(SETTINGS_SCHEMA.findIndex((x) => x.id === 'desktop'), 1);
+  const win = SETTINGS_SCHEMA.find((x) => x.id === 'window');
+  win.rows = win.rows.filter((r) => !['gameMode', 'autoUpdate'].includes(r.key));
+  for (const r of win.rows) {
+    if (r.key === 'startWithWindows') { r.label = 'Start with the desktop session'; r.desc = 'Starts quietly in the tray when you log in'; }
+    if (r.key === 'hotkey') r.desc = 'Works from anywhere. On Wayland your desktop may ask you to approve it';
+  }
+}
 
 const prettyAccel = (a) => String(a || '').replace('Control', 'Ctrl').replace('Super', 'Win').replace(/\+/g, ' + ');
 
@@ -133,6 +145,7 @@ function settingRow(row, s) {
 // Whether Nexus is set up as the Windows desktop (asked from the main process; the rows redraw when it answers)
 let shellInfo = null;
 function refreshShellInfo() {
+  if (window.api.platform === 'linux') return Promise.resolve();
   return window.api.shellStatus().then((i) => {
     const same = JSON.stringify(i) === JSON.stringify(shellInfo);
     shellInfo = i;
