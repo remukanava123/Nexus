@@ -1,6 +1,6 @@
 # Nexus
 
-A game and app launcher for Windows, built with Electron. Nexus finds your games from Steam, Epic, Battle.net, HoYoPlay and Kuro, plus your installed apps and favourite websites, and puts them in one place.
+A game and app launcher for Windows and Linux (Fedora, Bazzite), built with Electron. Nexus finds your games from Steam, Epic, Battle.net, HoYoPlay and Kuro, plus your installed apps and favourite websites, and puts them in one place.
 
 ## Features
 
@@ -61,6 +61,30 @@ Settings → "Nexus as your desktop" → **Set up…** makes Nexus the Windows s
 
 **Undo it:** Settings → **Restore Windows desktop**. If you can't reach Settings, press Ctrl + Shift + Esc, choose *Run new task*, and run `"<path to Nexus.exe>" --restore-shell`, then sign out and back in. Windows' own recovery works too: the setting is `Shell` under `HKCU\Software\Microsoft\Windows NT\CurrentVersion\Winlogon`, and deleting that value restores the normal desktop.
 
+## Linux (Fedora, Bazzite and other distros)
+
+Nexus also runs on Linux. It was written on Windows, and the Linux side has **not been tested on a real Fedora or Bazzite install yet**, so please open an issue if something is off.
+
+**Install**
+- **Bazzite (or any immutable distro):** download the `.AppImage` from the releases page, make it executable (`chmod +x Nexus-*.AppImage`) and run it, or add it with Gear Lever from Flathub. Nothing is layered onto the system.
+- **Fedora Workstation:** `sudo dnf install ./nexus-*.rpm`, or use the AppImage.
+- **From source:** `npm install`, then `npm start`. Build packages with `npm run dist:linux`.
+
+**What Nexus finds**
+- Steam games (native and Flatpak Steam, including extra library folders)
+- Epic and GOG games installed through Heroic (native and Flatpak)
+- Lutris games (if the `lutris` command is available)
+- Installed apps and native games from your `.desktop` entries, including Flatpaks. Entries in the *Game* category count as games.
+
+**What works the same:** playtime tracking and stats (read from the running processes, Proton games included), tags, favourites, the gacha helper, news, Barça, the Overwatch page, the launch cover with tips, big-screen mode, the tray and starting with your session.
+
+**What is different**
+- The launch cover waits for the game's process and then gives it about ten more seconds. It cannot see the game's window or its sound on Linux, so raise *Extra wait before fading* if it goes too early.
+- Nexus cannot slot itself behind a game, so it minimises instead and comes back when the game closes.
+- The overlay reads the current song from any MPRIS player (Spotify, browsers, VLC...) using `gdbus`, which comes with Fedora and Bazzite. The sound bars are decorative. On Wayland a click-through overlay over an exclusive-fullscreen game is not possible; use borderless windowed mode.
+- The global shortcut uses the desktop portal on Wayland. KDE Plasma and recent GNOME ask you to approve it once.
+- Windows-only features are hidden: Battle.net, HoYoPlay and Wuthering Waves launcher handling, "Nexus as your desktop", the admin-prompt switch, and launcher update progress (Steam update progress still works).
+
 ## Running from source
 
 ```bash
@@ -91,6 +115,7 @@ Nexus keeps its files in `%APPDATA%\Nexus` (Settings → Data folder opens it). 
 
 ## Notes
 
+- Low resource mode (Settings → Data & maintenance) turns off graphics acceleration to save memory. Nexus also stops all animation while it is hidden or behind a game.
 - Games that require administrator rights show a Windows UAC prompt when launched.
 - Wuthering Waves opens its own launcher, and you press Start there.
 - Barça and news data come from public sources (ESPN, BBC Sport, BarcaBlog, Google News, HoYoPlay, Steam news) and are cached locally, so the pages need internet only the first time.

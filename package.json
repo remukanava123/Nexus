@@ -6,7 +6,8 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win nsis"
+    "dist": "electron-builder --win nsis",
+    "dist:linux": "electron-builder --linux AppImage rpm tar.gz --publish never"
   },
   "build": {
     "appId": "local.nexus.launcher",
@@ -36,6 +37,31 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Nexus"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "rpm",
+        "tar.gz"
+      ],
+      "category": "Game",
+      "icon": "assets/icon.png",
+      "executableName": "nexus",
+      "synopsis": "Game and app launcher",
+      "description": "All-in-one launcher for games, apps and websites",
+      "desktop": {
+        "entry": {
+          "Name": "Nexus",
+          "Comment": "Game and app launcher",
+          "Categories": "Game;Utility;",
+          "StartupWMClass": "Nexus"
+        }
+      }
+    },
+    "rpm": {
+      "fpm": [
+        "--rpm-rpmbuild-define=_build_id_links none"
+      ]
     }
   },
   "devDependencies": {

@@ -19,9 +19,24 @@ const updates = require('./src/updates');
 const { createOverlay } = require('./src/overlay');
 const overwatchApi = require('./src/overwatch');
 
+const IS_LINUX = process.platform === 'linux';
+const linux = IS_LINUX ? require('./src/linux') : null;
+if (IS_LINUX) {
+  // Wayland (Fedora, Bazzite): use the native Wayland backend when there is one, and let global shortcuts go through the desktop portal
+  app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
+  app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal,WaylandWindowDecorations');
+}
+
 const ICON = path.join(__dirname, 'assets', 'icon.png');
 const POWERSHELL = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
 const SETTING_DEFAULTS = Store.DEFAULT_SETTINGS;
+
+// "Low resource mode" (Settings → Data & maintenance): no GPU acceleration, which frees the GPU process's memory.
+// It has to be decided before Electron starts, so the saved setting is read straight from the file here.
+try {
+  const saved = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'library.json'), 'utf8').replace(/^﻿/, ''));
+  if (saved && saved.settings && saved.settings.lowResource) app.disableHardwareAcceleration();
+} catch {}
 
 let win, tray, store, tracker, overlay;
 let items = [];
@@ -49,7 +64,7 @@ if (process.argv.includes('--restore-shell')) {
 }
 
 function init() {
-  app.setAppUserModelId('local.nexus.launcher'); // needed for Windows notifications
+  if (!IS_LINUX) app.setAppUserModelId('local.nexus.launcher'); // needed for Windows notifications
   store = new Store(app.getPath('userData'));
   if (shellActive) store.runtime.shellMode = 'shell';
   const s = store.data.settings;
@@ -298,7 +313,7 @@ let behindGen = 0; // bumped whenever the user brings Nexus back, so a step-behi
 let behindTimer = null;
 let locked = false;
 
-const myHwnd = () => win.getNativeWindowHandle().readBigUInt64LE(0).toString();
+const myHwnd = () => (IS_LINUX ? '1' : win.getNativeWindowHandle().readBigUInt64LE(0).toString());
 
 function cancelStepBehind() {
   behindGen++;
@@ -323,6 +338,15 @@ let beforeShow = null;
 async function stepBehind(target, { lock = null, waitMs = 0, since = 0, tidy = null } = {}) {
   if (!win || win.isDestroyed()) return;
   const s = store.data.settings;
+  if (IS_LINUX) {
+    // Linux has no way to slot a window in behind another one, so Nexus just tucks itself away (minimised) and comes back when the game closes
+    cancelStepBehind();
+    clearInterval(coverTimer); coverTimer = null;
+    if (tidy) tidy();
+    win.setOpacity(1); win.setIgnoreMouseEvents(false);
+    win.minimize();
+    return;
+  }
   cancelStepBehind();
   const gen = behindGen;
   beforeShow = tidy;
@@ -374,7 +398,7 @@ function startBackdropWatch(it, spec) {
   job.watcher = launchWatch.startWatch(spec, (it.readyNames || []).map((n) => n.toLowerCase()), (sample) => {
     if (backdrop !== job) return;
     if (sample) { seen = true; gone = 0; return; }
-    if (!seen || checking || ++gone < 4) return; // about 2.5 s without any game window
+    if (!seen || checking || ++gone < 2) return; // about 3 s without any game window
     checking = true;
     const since = Date.now();
     const confirm = () => {
@@ -385,7 +409,7 @@ function startBackdropWatch(it, spec) {
       setTimeout(confirm, 500);
     };
     confirm();
-  });
+  }, { interval: 1500 }); // while you play it only needs to notice the window closing, so look less often
   job.timer = setTimeout(() => { if (backdrop === job) { stopBackdrop(); releaseLock(); } }, 12 * 3600 * 1000);
 }
 
@@ -469,7 +493,7 @@ function hideAfterLaunch(it) {
         sendPhase('handoff');
         try { new Notification({ title: it.name, body: 'The launcher needs you. Nexus has stepped aside so you can use it.' }).show(); } catch {}
       }
-      if (game && (s.gameMode === 'ghost' || s.alwaysOnTop)) {
+      if (game && !IS_LINUX && (s.gameMode === 'ghost' || s.alwaysOnTop)) {
         // "On top, nearly invisible" ("always on top" can't be behind anything): fade to 1%, click-through, the game keeps the keyboard
         if (s.launchFade && s.animations) await new Promise((res) => fadeWindow(win.getOpacity(), 0.01, 900, res)); else win.setOpacity(0.01);
         if (wait.state === 'cancelled') { win.setOpacity(1); return; }
@@ -660,7 +684,8 @@ function customToItem(c) {
   if (c.kind === 'web') {
     return { id: c.id, type: 'web', source: 'web', name: c.name, url: c.url, icon: favicon(c.url), custom: true, launch: { kind: 'url', target: c.url } };
   }
-  const isExe = /\.exe$/i.test(c.path);
+  let isExe = /\.exe$/i.test(c.path);
+  if (IS_LINUX) { try { fs.accessSync(c.path, fs.constants.X_OK); isExe = !fs.statSync(c.path).isDirectory() && !/\.desktop$/i.test(c.path); } catch { isExe = false; } }
   return {
     id: c.id, type: c.category === 'game' ? 'game' : 'app', source: 'custom', name: c.name, custom: true,
     iconPath: c.path, location: c.path,
@@ -808,6 +833,12 @@ const psQuote = (s) => `'${String(s).replace(/'/g, "''")}'`;
 
 async function launch(l, it) {
   if (l.kind === 'url') return shell.openExternal(l.target);
+  if (IS_LINUX && l.kind === 'desktop') { if (!(await linux.launchDesktop(l.target))) throw new Error(`Could not start ${l.target}`); return; }
+  if (IS_LINUX && l.kind === 'exe') {
+    if (!fs.existsSync(l.target)) throw new Error(`File not found: ${l.target}`);
+    linux.launchExe(l.target, l.args);
+    return;
+  }
   if (l.kind === 'bnet') {
     // Not awaited: it can take a while (Battle.net starting and logging in) and the cover shows the progress meanwhile
     if (!fs.existsSync(l.target)) throw new Error(`File not found: ${l.target}`);
@@ -850,6 +881,7 @@ async function launch(l, it) {
 }
 
 function setLoginItem(on) {
+  if (IS_LINUX) { try { linux.setAutostart(on, process.env.APPIMAGE || process.execPath); } catch (e) { console.error(e); } return; }
   const opts = { openAtLogin: on, args: ['--hidden'] };
   if (!app.isPackaged) Object.assign(opts, { path: process.execPath, args: [app.getAppPath(), '--hidden'] });
   // The portable build unpacks to a temp folder that changes every run; point at the real .exe instead
@@ -1003,7 +1035,7 @@ function registerIpc() {
   ipcMain.handle('dialog:pickFile', async () => {
     const res = await dialog.showOpenDialog(win, {
       title: 'Choose a program or game', properties: ['openFile'],
-      filters: [{ name: 'Programs', extensions: ['exe', 'lnk', 'url', 'bat', 'cmd'] }, { name: 'All files', extensions: ['*'] }],
+      filters: IS_LINUX ? [{ name: 'All files', extensions: ['*'] }] : [{ name: 'Programs', extensions: ['exe', 'lnk', 'url', 'bat', 'cmd'] }, { name: 'All files', extensions: ['*'] }],
     });
     if (res.canceled) return null;
     const p = res.filePaths[0];
