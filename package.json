@@ -1,16 +1,13 @@
 {
   "name": "nexus-launcher",
   "productName": "Nexus",
-  "version": "1.2.0",
-  "author": {
-    "name": "remukanava",
-    "email": "remmukannava@gmail.com"
-  },
+  "version": "1.2.2",
   "description": "All-in-one launcher for apps, games and websites",
   "repository": "github:remukanava123/Nexus",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "predist": "node scripts/check-version.js",
     "dist": "electron-builder --win nsis",
     "dist:linux": "electron-builder --linux AppImage rpm tar.gz --publish never"
   },
@@ -32,7 +29,8 @@
       "src/launch-wuwa.ps1"
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "artifactName": "${productName} Setup ${version}.${ext}"
     },
     "nsis": {
       "oneClick": true,

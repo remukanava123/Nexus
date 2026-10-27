@@ -1,6 +1,6 @@
 // What's new, shown once after Nexus is updated. Add an entry for each version you release (the key is the version in package.json).
 module.exports = {
-  '1.2.0': {
+  '1.2.2': {
     title: 'Hours, achievements and new advancements',
     items: [
       ['⏱️', 'Hours you already played', 'Games now show their total hours, for example “632h played · 43h in Nexus”. Steam hours come straight from Steam, Overwatch from your public profile, and for any other game you can type the number in on its page.'],

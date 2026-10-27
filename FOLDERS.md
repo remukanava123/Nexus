@@ -21,6 +21,7 @@ Nexus is an Electron app: one **main process** (`main.js`, runs in the backgroun
 | `assets/` | The logo (`logo.svg`, `icon.png`, `tray.png`) and `sounds/` (the sidebar hover sounds, already trimmed and level-matched). |
 | `.github/workflows/build.yml` | Builds the Windows installer and Linux packages on GitHub when you push a tag like `v1.0.0`. |
 | `package.json` | App name, version, GitHub repo, and installer settings. Change `version` here before each release. |
+| `scripts/` | `check-version.js`, which runs before every build and checks the release notes exist for the version. |
 | `package-lock.json` | Exact versions of the libraries. Don't edit by hand. |
 | `README.md` | The public description of Nexus for GitHub. |
 | `FOLDERS.md` | This file. |
@@ -94,9 +95,9 @@ Scripts in `renderer/js/`:
 
 ## Releasing a new version
 
-1. Change `version` in `package.json` and add an entry for it in `shared/release-notes.js` (shown once after the update).
+1. Change `version` in `package.json` (for example `1.2.3`) and add an entry with the same number in `shared/release-notes.js`. That one number is used everywhere: the installer name (`Nexus Setup 1.2.3.exe`), the exe's Properties, Settings > About and the update check. The build stops with a message if the notes entry is missing.
 2. Close Nexus, run `npm run dist`, then run `Nexus/Update Nexus.bat`.
-3. Copy the source into `Nexus-Github`, push it, and create a GitHub release with the same version as its tag, attaching `dist/Nexus Setup <version>.exe`.
+3. Copy the source into `Nexus-Github`, push it, and create a GitHub release tagged with the same number (`1.2.3`), attaching `dist/Nexus Setup 1.2.3.exe`.
 
 ## Where things go
 
