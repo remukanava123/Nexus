@@ -49,6 +49,13 @@ contextBridge.exposeInMainWorld('api', {
   overlayResetLayout: () => ipcRenderer.invoke('overlay:resetLayout'),
   overlayStats: () => ipcRenderer.invoke('overlay:stats'),
   openDataFolder: () => ipcRenderer.invoke('data:openFolder'),
+  checkUpdate: () => ipcRenderer.invoke('update:check'),
+  appInfo: () => ipcRenderer.invoke('app:info'),
+  setHours: (id, hours) => ipcRenderer.invoke('lifetime:set', id, hours),
+  achievements: (id) => ipcRenderer.invoke('achievements:get', id),
+  achievementsSummary: () => ipcRenderer.invoke('achievements:summary'),
+  whatsNew: (force) => ipcRenderer.invoke('whatsnew:get', force),
+  whatsNewSeen: () => ipcRenderer.invoke('whatsnew:seen'),
 
   // Events carry at most one argument (the payload from the main process)
   on: (event, fn) => { if (EVENTS.includes(event)) ipcRenderer.on(event, (_e, payload) => fn(payload)); },

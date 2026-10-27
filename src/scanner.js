@@ -240,6 +240,89 @@ async function scanWuWa() {
   return [];
 }
 
+// ---------- EA app ----------
+// The EA app keeps no readable game list, but every game it installs has an __Installer folder with installerdata.xml
+// in its install directory, and most also register an uninstall entry. Both are used, de-duplicated by folder.
+const EA_NOT_GAME = /^(EA app|EA Desktop|EA Core|EA Launcher|Origin|EA Anticheat|EA Javelin)\b|redistributable|visual c\+\+|directx/i;
+const EA_EXE_SKIP = /unins|setup|crash|report|redist|anticheat|^eac|activation|touchup|cleanup|dxsetup|helper|^ea ?(core|desktop)/i;
+
+function eaRoots() {
+  const roots = new Set();
+  const pf = [process.env.ProgramFiles, process.env['ProgramFiles(x86)']].filter(Boolean);
+  for (const p of pf) for (const s of ['EA Games', 'Electronic Arts', 'Origin Games']) roots.add(path.join(p, s));
+  for (const d of 'CDEFGH') for (const s of ['EA Games', 'Electronic Arts', 'Origin Games', 'Games\\EA Games']) roots.add(`${d}:\\${s}`);
+  // A library folder picked inside the EA app is stored in the per-user ini
+  const dir = path.join(process.env.LOCALAPPDATA || '', 'Electronic Arts', 'EA Desktop');
+  try {
+    for (const f of fs.readdirSync(dir).filter((n) => /^user_.*\.ini$/i.test(n))) {
+      const m = fs.readFileSync(path.join(dir, f), 'utf8').match(/^user\.downloadinplacedir=(.+)$/im);
+      if (m && m[1].trim()) roots.add(path.normalize(m[1].trim()));
+    }
+  } catch {}
+  return [...roots].filter(exists);
+}
+
+function eaGameExe(dir, xml) {
+  // The manifest lists the real launchers (for EA SPORTS FC that is the anti-cheat launcher, which a plain game exe would bypass).
+  // The block with no parameters is the full game; ones with parameters are trials and the like.
+  const blocks = [...xml.matchAll(/<launcher\b[^>]*>([\s\S]*?)<\/launcher>/gi)].map((m) => m[1]);
+  const pick = blocks.find((b) => /<parameters\s*\/>|<parameters>\s*<\/parameters>/i.test(b)) || blocks[0] || '';
+  const want = (pick.match(/<filePath>\s*(?:\[[^\]]*\])?\s*([^<]+?\.exe)\s*<\/filePath>/i) || [])[1];
+  const list = (d) => { try { return fs.readdirSync(d, { withFileTypes: true }); } catch { return []; } };
+  const top = list(dir);
+  if (want) {
+    const rel = want.replace(/^[\\/]+/, '');
+    const direct = path.join(dir, rel);
+    if (exists(direct)) return direct;
+    const byName = top.find((e) => e.isFile() && e.name.toLowerCase() === path.basename(rel).toLowerCase());
+    if (byName) return path.join(dir, byName.name);
+  }
+  const size = (p) => { try { return fs.statSync(p).size; } catch { return 0; } };
+  const exes = top.filter((e) => e.isFile() && /\.exe$/i.test(e.name) && !EA_EXE_SKIP.test(e.name)).map((e) => path.join(dir, e.name));
+  return exes.sort((a, b) => size(b) - size(a))[0] || null;
+}
+
+async function scanEA() {
+  const dirs = new Map(); // normalized folder -> { dir, name }
+  const add = (dir, name) => {
+    if (!dir || !exists(dir)) return;
+    const key = path.normalize(dir).toLowerCase().replace(/[\\/]+$/, '');
+    if (!dirs.has(key)) dirs.set(key, { dir: path.normalize(dir), name });
+  };
+  for (const root of eaRoots()) {
+    let kids = [];
+    try { kids = fs.readdirSync(root, { withFileTypes: true }); } catch {}
+    for (const k of kids) if (k.isDirectory() && exists(path.join(root, k.name, '__Installer'))) add(path.join(root, k.name), k.name);
+  }
+  for (const e of await uninstallEntries()) {
+    if (!/Electronic Arts|^EA\b|EA Swiss/i.test(e.Publisher || '') || EA_NOT_GAME.test(e.DisplayName)) continue;
+    const loc = e.InstallLocation && e.InstallLocation.replace(/"/g, '');
+    if (loc && exists(path.join(loc, '__Installer'))) add(loc, e.DisplayName);
+  }
+
+  const games = [];
+  for (const { dir, name: folderName } of dirs.values()) {
+    if (EA_NOT_GAME.test(folderName)) continue;
+    let xml = '';
+    try { xml = await fsp.readFile(path.join(dir, '__Installer', 'installerdata.xml'), 'utf8'); } catch {}
+    const exe = eaGameExe(dir, xml);
+    if (!exe) continue;
+    const titleOf = (re) => (xml.match(re) || [])[1];
+    const title = (titleOf(/<gameTitle\s+locale="en_US">\s*([^<]+?)\s*<\/gameTitle>/i) || titleOf(/<gameTitle[^>]*>\s*([^<]+?)\s*<\/gameTitle>/i) || folderName)
+      .replace(/&amp;/g, '&').replace(/&apos;/g, "'").replace(/&quot;/g, '"').replace(/[®™]/g, '');
+    games.push({
+      id: `ea:${path.basename(dir).toLowerCase()}`,
+      type: 'game',
+      source: 'ea',
+      name: title,
+      iconPath: exe,
+      launch: { kind: 'exe', target: exe },
+      location: dir,
+    });
+  }
+  return games;
+}
+
 // ---------- Start Menu apps ----------
 const DOC_TARGET = /\.(url|html?|txt|pdf|chm|ini|log|md|json|xml|rtf|cfg|docx?|xlsx?)$/i;
 const APP_SKIP = /^Administrative Tools$|(Native|Cross) Tools Command Prompt|uninstall|uninst|readme|read me|help|documentation|manual|website|web site|release notes|license|support|changelog|^remove|^repair|setup$/i;
@@ -304,9 +387,30 @@ async function scanApps(shell) {
       name: p.Name,
       icon: exists(p.Logo) ? fileUrl(p.Logo) : null,
       launch: { kind: 'uwp', target: p.AppID },
+      installDir: p.InstallLocation || null,
     });
   }
-  return [...apps.values()];
+  return promoteGames([...apps.values()]);
+}
+
+// Games that install without a Steam/Epic entry (Roblox, the Minecraft launchers, Game Pass titles) only show up as
+// Start Menu or Store apps, so they would land under Apps. These are moved to Games by name or by the Game Pass folder.
+const GAME_APP = /^(minecraft(?!\s*(dungeons|legends|earth))[\w\s.-]*|roblox( player)?|lunar client|prism launcher|atlauncher|tlauncher|badlion client|multimc|curseforge)$/i;
+const GAME_UWP_DIR = /[\\/]XboxGames[\\/]/i;
+
+function promoteGames(list) {
+  const hasRoblox = list.some((a) => /^roblox$/i.test(a.name));
+  const out = [];
+  for (const a of list) {
+    if (hasRoblox && /^roblox player$/i.test(a.name)) continue; // same game, two Start Menu entries
+    if (a.type === 'app' && (GAME_APP.test(a.name.trim()) || (a.installDir && GAME_UWP_DIR.test(a.installDir)))) {
+      a.type = 'game';
+      a.source = a.launch && a.launch.kind === 'uwp' ? 'xbox' : 'app';
+    }
+    delete a.installDir;
+    out.push(a);
+  }
+  return out;
 }
 
 // Game names already detected by a launcher scan shouldn't also appear as plain apps
@@ -314,9 +418,9 @@ async function scanAll(shell) {
   if (process.platform === 'linux') return require('./linux').scanAll();
   uninstallCache = null;
   const safe = (p) => p.catch((e) => { console.error(e); return []; });
-  const [steam, epic, bnet, hoyo, wuwa, apps] = await Promise.all(
-    [scanSteam(), scanEpic(), scanBattleNet(), scanHoYo(), scanWuWa(), scanApps(shell)].map(safe));
-  const games = [...steam, ...epic, ...bnet, ...hoyo, ...wuwa];
+  const [steam, epic, bnet, hoyo, wuwa, ea, apps] = await Promise.all(
+    [scanSteam(), scanEpic(), scanBattleNet(), scanHoYo(), scanWuWa(), scanEA(), scanApps(shell)].map(safe));
+  const games = [...steam, ...epic, ...bnet, ...hoyo, ...wuwa, ...ea];
   const gameNames = new Set(games.map((g) => norm(g.name)));
   const gameDirs = games.map((g) => g.location && g.location.toLowerCase()).filter(Boolean);
   const isGame = (a) => gameNames.has(norm(a.name)) ||

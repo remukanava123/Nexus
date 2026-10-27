@@ -60,7 +60,7 @@
   set('icon', q.get('icon') || '🏆');
   set('name', q.get('name') || '');
   set('desc', q.get('desc') || '');
-  set('count', `${q.get('n')} of ${q.get('total')} badges unlocked`);
+  set('count', `${q.get('n')} of ${q.get('total')} advancements unlocked`);
 
   // A short achievement chime: a rising arpeggio with a soft echo, made from plain oscillators
   const volume = Math.max(0, Math.min(100, Number(q.get('vol')) || 0)) / 100;

@@ -16,6 +16,9 @@ const shellMode = require('./src/shell-mode');
 const launcherPress = require('./src/launcher-press');
 const bnet = require('./src/bnet');
 const updates = require('./src/updates');
+const releaseCheck = require('./src/release-check');
+const lifetime = require('./src/lifetime');
+const RELEASE_NOTES = require('./shared/release-notes');
 const { createOverlay } = require('./src/overlay');
 const overwatchApi = require('./src/overwatch');
 
@@ -28,6 +31,7 @@ if (IS_LINUX) {
 }
 
 const ICON = path.join(__dirname, 'assets', 'icon.png');
+const TRAY_ICON = path.join(__dirname, 'assets', 'tray.png'); // a simpler version of the logo that stays readable at 16 px
 const POWERSHELL = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
 const SETTING_DEFAULTS = Store.DEFAULT_SETTINGS;
 
@@ -80,7 +84,7 @@ function init() {
   tracker.on('change', () => { overlay.gamesChanged(); });
   tracker.on('change', () => { createTray(); sendState(); }); // rebuild the tray menu so its "Playing: ..." line is current
   tracker.on('end', (id, ms) => {
-    if (ms >= 60000) sendState();
+    if (ms >= 60000) { sendState(); setTimeout(() => refreshLifetime().catch(() => {}), 20000); } // Steam writes the new total a moment after the game closes
     // After a game: come straight back, fullscreen, so the desktop never shows. (When Nexus is the desktop, always: a blank screen is the alternative.)
     const nothingRunning = tracker.active.size === 0; // (store.runtime.running is only refreshed after this event)
     if (nothingRunning) releaseLock(); // no game left to be locked behind
@@ -94,6 +98,9 @@ function init() {
   setInterval(refreshNews, 30 * 60000);
   setInterval(checkAlerts, 30000);
   setTimeout(checkAlerts, 5000);
+  setTimeout(() => checkRelease(false), 45000);
+  setInterval(() => checkRelease(false), 12 * 3600000);
+  setInterval(() => refreshLifetime().catch(() => {}), 30 * 60000);
   // Explorer normally starts the Run-key and Startup-folder apps at sign-in; with Nexus as the desktop, nobody else will
   if (shellActive && s.shellRunStartup) setTimeout(() => shellMode.runStartupApps(['nexus']), 6000);
 }
@@ -181,7 +188,7 @@ function nowPlayingLabel() {
 
 function createTray() {
   if (!tray) {
-    tray = new Tray(nativeImage.createFromPath(ICON).resize({ width: 16, height: 16 }));
+    tray = new Tray(nativeImage.createFromPath(TRAY_ICON).resize({ width: 16, height: 16 }));
     tray.on('click', showWindow);
   }
   tray.setContextMenu(Menu.buildFromTemplate([
@@ -634,6 +641,32 @@ function notifyUser(title, body, view) {
   n.show();
 }
 
+// A newer GitHub release only produces a notification (once per version); the user opens the page and installs it themselves
+async function checkRelease(manual) {
+  if (!manual && !store.data.settings.checkUpdates) return null;
+  const res = await releaseCheck.check(app.getVersion());
+  if (res.newer && !manual && store.data.updateNotified !== res.latest && Notification.isSupported()) {
+    store.data.updateNotified = res.latest;
+    store.save();
+    const n = new Notification({ title: `Nexus ${res.latest} is out`, body: 'Click to see what changed and download it.', icon: ICON });
+    n.on('click', () => shell.openExternal(res.url));
+    n.show();
+  }
+  return res;
+}
+
+// Total hours per game (Steam, the Overwatch profile, or typed in) so the UI can show "632h played (43h in Nexus)"
+const netFetch = (u, o) => require('electron').net.fetch(u, { ...o, signal: AbortSignal.timeout(12000) });
+let lifetimeBusy = false;
+async function refreshLifetime() {
+  if (lifetimeBusy) return;
+  lifetimeBusy = true;
+  try {
+    const next = store.data.settings.lifetimeHours === false ? {} : await lifetime.compute(items, store, overwatchApi, netFetch);
+    if (JSON.stringify(next) !== JSON.stringify(store.runtime.lifetime)) { store.runtime.lifetime = next; sendState(); }
+  } finally { lifetimeBusy = false; }
+}
+
 function onPlayTick(id, elapsed, a) {
   const s = store.data.settings;
   if (!s.breakReminder) return;
@@ -735,6 +768,7 @@ function getLibrary(rescan) {
       store.data.libCache = found; scanned = true; store.save(); // next start shows this straight away
       items = [...found, ...store.data.custom.map(customToItem)];
       watched = watchList(items);
+      refreshLifetime().catch(console.error);
       seedStarterTags();
       applyArt();
       await applyIcons();
@@ -1058,7 +1092,7 @@ function registerIpc() {
   });
 
   ipcMain.handle('settings:reset', () => {
-    store.data.settings = { ...SETTING_DEFAULTS };
+    store.data.settings = { ...SETTING_DEFAULTS, welcomeDone: store.data.settings.welcomeDone };
     store.save();
     for (const k of ['startWithWindows', 'alwaysOnTop', 'uiScale', 'trackPlaytime']) applySetting(k, SETTING_DEFAULTS[k]);
     registerHotkey(SETTING_DEFAULTS.hotkey);
@@ -1208,6 +1242,26 @@ function registerIpc() {
   ipcMain.handle('overlay:resetLayout', () => { overlay.resetLayout(); return true; });
   ipcMain.handle('overlay:stats', () => overlay.stats());
   ipcMain.handle('data:openFolder', () => shell.openPath(app.getPath('userData')));
+  ipcMain.handle('app:info', () => ({ version: app.getVersion() }));
+  ipcMain.handle('lifetime:set', (_e, id, hours) => {
+    const h = Math.round(Number(hours) * 10) / 10;
+    store.data.manualHours = store.data.manualHours || {};
+    if (!Number.isFinite(h) || h <= 0) delete store.data.manualHours[id]; else store.data.manualHours[id] = Math.min(h, 100000);
+    store.save();
+    return refreshLifetime().then(() => store.public());
+  });
+  ipcMain.handle('achievements:get', (_e, id) => lifetime.achievementsFor(items.find((i) => i.id === id), store, netFetch).catch(() => null));
+  ipcMain.handle('achievements:summary', () => lifetime.summary(items).catch(() => []));
+  // "What's new" appears once after an update. Nexus's own notes are bundled; nothing is downloaded.
+  ipcMain.handle('whatsnew:get', (_e, force) => {
+    const cur = app.getVersion(), seen = store.data.lastSeenVersion;
+    if (force) return RELEASE_NOTES[cur] ? { version: cur, from: null, ...RELEASE_NOTES[cur] } : null;
+    if (store.firstRun) { store.data.lastSeenVersion = cur; store.save(); return null; } // a fresh install has the welcome guide instead
+    if (seen === cur || !RELEASE_NOTES[cur]) return null;
+    return { version: cur, from: seen || null, ...RELEASE_NOTES[cur] };
+  });
+  ipcMain.handle('whatsnew:seen', () => { store.data.lastSeenVersion = app.getVersion(); store.save(); return true; });
+  ipcMain.handle('update:check',async () => ({ ...(await checkRelease(true)), current: app.getVersion() }));
 
 
   // ----- Tags -----
@@ -1244,14 +1298,14 @@ function registerIpc() {
   // The page works out which badges are unlocked. `fresh` are ones to announce, `quiet` are just recorded.
   ipcMain.handle('badges:seen', (_e, quiet, fresh, total) => {
     const seen = new Set(store.data.badgesSeen || []);
-    for (const n of [...(quiet || []), ...(fresh || []).map((b) => b.name)]) seen.add(String(n));
+    for (const n of [...(quiet || []), ...(fresh || []).map((b) => b.key || b.name)]) seen.add(String(n));
     store.data.badgesSeen = [...seen];
     store.save();
     if (fresh && fresh.length && store.data.settings.badgePopups) fresh.forEach((b, i) => queueBadgeToast(b, total - fresh.length + i + 1, total));
     return store.public();
   });
   ipcMain.handle('badges:preview', () => {
-    queueBadgeToast({ name: 'Test Pilot', icon: '🏆', desc: 'This is what a badge popup looks like' }, 1, 70, true);
+    queueBadgeToast({ name: 'Test Pilot', icon: '🏆', desc: 'This is what an advancement popup looks like' }, 1, 100, true);
   });
 }
 

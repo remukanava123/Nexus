@@ -1,5 +1,7 @@
 # Nexus
 
+> Made by Claude (Anthropic's AI assistant), written and tested with Claude Code.
+
 A game and app launcher for Windows and Linux (Fedora, Bazzite), built with Electron. Nexus finds your games from Steam, Epic, Battle.net, HoYoPlay and Kuro, plus your installed apps and favourite websites, and puts them in one place.
 
 ## Features
@@ -7,7 +9,10 @@ A game and app launcher for Windows and Linux (Fedora, Bazzite), built with Elec
 - **Library:** games, apps and websites in one searchable view, with covers, descriptions and screenshots.
 - **Tags and filters:** per-game tags (Playing, Finished, Co-op and so on), with starter tags added for games it recognises.
 - **Playtime tracking:** counts hours for anything it sees running, including games started elsewhere.
-- **Stats and badges:** charts, per-game stats, 70 badges, and a Steam-style popup with a sound when you unlock one.
+- **Total hours:** games show hours played in total, for example "632h played, 43h in Nexus". Steam hours are read from Steam's own files on your PC (no login). Overwatch hours come from your public career profile (set your BattleTag in Settings). Epic, EA, HoYoPlay, Kuro and Battle.net don't share their playtime, so for those you can type your hours in on the game's page.
+- **Steam achievements:** a game's page shows how many you have unlocked, your rarest ones, the most recent, and what is still locked, all read from Steam's local files.
+- **Stats and advancements:** charts, per-game stats and over 120 advancements in tiers with rarity, progress bars and a few secret ones, plus a Steam-style popup with a sound when you unlock one.
+- **Welcome guide and update notes:** a short first-run setup, a Basic and an Advanced settings tab, a GitHub update check, and a "What's new" page shown once after you update.
 - **Gacha tools:** daily and weekly reset timers, stamina, banner countdowns and a pull planner for Honkai: Star Rail, Wuthering Waves and Genshin Impact.
 - **News:** patch notes and announcements for your games.
 - **Barça tab:** fixtures, results, tables, squad and news for FC Barcelona (La Liga, Champions League, Copa del Rey, Supercopa).
@@ -111,7 +116,9 @@ Nexus keeps its files in `%APPDATA%\Nexus` (Settings → Data folder opens it). 
 | `main.js` | Electron main process: windows, tray, launching, IPC |
 | `src/` | Scanner, playtime tracker, store, feeds (news and Barça data), cover lookup, preload bridge |
 | `shared/gacha-data.js` | Gacha resets, stamina and banner maths |
-| `renderer/` | The interface: pages, styles, sounds, big-screen mode |
+| `renderer/` | The interface: pages (`index.html`), `css/`, and one script per feature in `js/` |
+
+See [FOLDERS.md](FOLDERS.md) for a file-by-file guide.
 
 ## Notes
 

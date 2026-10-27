@@ -31,6 +31,6 @@ $result = foreach ($app in (Get-StartApps | Where-Object { $_.AppID -like '*!*' 
       }
     } catch {}
   }
-  [pscustomobject]@{ Name = $app.Name; AppID = $app.AppID; Logo = $logo }
+  [pscustomobject]@{ Name = $app.Name; AppID = $app.AppID; Logo = $logo; InstallLocation = if ($pkg) { $pkg.InstallLocation } else { $null } }
 }
 $result | ConvertTo-Json -Compress

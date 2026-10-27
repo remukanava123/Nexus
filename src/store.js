@@ -22,7 +22,8 @@ const DEFAULT_SETTINGS = {
   hideOnLaunch: true, closeToTray: true, startWithWindows: false, alwaysOnTop: false, hotkey: 'Control+Alt+Space',
   launchConfetti: false, startBigScreen: false, startFullscreen: false,
   launchCover: true, launchExtraWait: 2, launchMinWidth: 1600, shellRunStartup: true,
-  lowResource: false,
+  lowResource: false, checkUpdates: true,
+  lifetimeHours: true, welcomeDone: false, hoverSounds: true,
   overlay: true, overlayMusic: true, overlayBars: true, overlayStats: true, owTag: '', owAutoTrack: false, overlayOpacity: 100,
   autoUpdate: true, returnAfterGame: true, returnFullscreen: true, gameMode: 'behind',
   // Sound & motion
@@ -38,16 +39,19 @@ const DATA_VERSION = 3;
 class Store {
   constructor(dir) {
     this.file = path.join(dir, 'library.json');
-    this.runtime = { running: {} }; // not saved: which games are open right now
+    this.runtime = { running: {}, lifetime: {} }; // not saved: which games are open right now, and total hours from Steam and the like
     let data = null;
     // (a file saved by PowerShell or Notepad can start with a byte-order mark, which JSON.parse rejects)
     try { data = JSON.parse(fs.readFileSync(this.file, 'utf8').replace(/^\uFEFF/, '')); } catch {}
+    this.firstRun = !data; // no library file yet: Nexus has never run here before
     this.data = {
       favorites: [], hidden: [], custom: [], recents: {}, covers: {}, artCache: {}, artMiss: {}, info: {}, iconCache: {}, iconMiss: {},
       playtime: {}, sessions: [], gacha: {}, notified: {},
       ...data,
       settings: { ...DEFAULT_SETTINGS, ...((data && data.settings) || {}) },
     };
+    // Someone who already uses Nexus doesn't need the welcome guide (it stays available in Settings)
+    if (data && !(data.settings && 'welcomeDone' in data.settings)) this.data.settings.welcomeDone = true;
     // Nexus no longer hides itself after a launch (it steps behind instead), so the old Hide choice becomes Behind
     if (this.data.settings.gameMode === 'hide') this.data.settings.gameMode = 'behind';
     delete this.data.launchTimes; // learned launch times are no longer used (readiness is the settled window plus the game's sound)
@@ -78,11 +82,13 @@ class Store {
 
   // Everything the UI needs, in one object
   public() {
-    const { favorites, hidden, recents, settings, covers, playtime, sessions, gacha, badgesSeen, tags, noAdmin } = this.data;
+    const { favorites, hidden, recents, settings, covers, playtime, sessions, gacha, badgesSeen, tags, noAdmin, manualHours } = this.data;
     return {
       favorites, hidden, recents, settings, customCovers: Object.keys(covers), playtime,
       tags: tags || {},
       noAdmin: noAdmin || {}, // games launched without the Windows admin prompt
+      lifetime: this.runtime.lifetime || {}, // { id: { sec, src } }: hours played in total, from Steam, the Overwatch profile or typed in
+      manualHours: manualHours || {},
       shell: this.runtime.shellMode === 'shell', // Nexus is the Windows desktop right now
       badgesSeen: badgesSeen || null, // null = never checked yet (the first check just records what is already unlocked)
       sessions: sessions.slice(-1500), gacha, running: this.runtime.running, now: Date.now(),
