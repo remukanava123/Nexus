@@ -100,3 +100,42 @@ async function startOnboarding() {
 }
 
 onboard.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !onboard.hidden && !prefs.settings.welcomeDone) e.stopPropagation(); });
+
+// ---------- "Update available" banner on the Home page ----------
+// state: null (nothing new), or { version, url, canInstall, phase: 'idle' | 'downloading' | 'installing' | 'error', pct, error }
+let updateState = null;
+
+function updateBannerHtml() {
+  const u = updateState;
+  if (!u) return '';
+  let right;
+  if (u.phase === 'downloading') right = `<div class="ub-prog"><div class="ub-bar"><span style="width:${u.pct || 0}%"></span></div><small>Downloading… ${u.pct || 0}%</small></div>`;
+  else if (u.phase === 'installing') right = '<small>Installing. Nexus will close and open again by itself…</small>';
+  else right = `<button class="play-btn small" data-update-now>${u.canInstall ? 'Update now' : 'Open download page'}</button>`;
+  const sub = u.phase === 'error' ? `<span class="ub-err">${esc(u.error)}</span>` : u.canInstall ? 'Nexus downloads the installer, runs it, and opens again. Your library and settings stay.' : 'Download the installer from the release page.';
+  return `<div class="update-banner" id="updateBanner"><div class="ub-icon">⬆️</div><div class="ub-text"><b>Update available · Nexus ${esc(u.version)}</b><small>${sub}</small></div><div class="ub-act">${right}</div></div>`;
+}
+
+window.api.on('update:available', (info) => {
+  updateState = info ? { ...info, phase: 'idle' } : null;
+  if (view === 'home') render();
+});
+window.api.on('update:progress', (pct) => {
+  if (!updateState) return;
+  updateState.phase = 'downloading'; updateState.pct = pct;
+  const el = document.getElementById('updateBanner');
+  if (el) el.outerHTML = updateBannerHtml();
+});
+window.api.updateStatus().then((info) => { if (info) { updateState = { ...info, phase: 'idle' }; if (view === 'home') render(); } }).catch(() => {});
+
+document.getElementById('content').addEventListener('click', async (e) => {
+  if (!e.target.closest('[data-update-now]') || !updateState) return;
+  if (!updateState.canInstall) { window.api.openExternal(updateState.url); return; }
+  updateState.phase = 'downloading'; updateState.pct = 0;
+  document.getElementById('updateBanner').outerHTML = updateBannerHtml();
+  const r = await window.api.installUpdate();
+  if (r.ok) updateState.phase = 'installing';
+  else { updateState.phase = 'error'; updateState.error = r.error || 'The update failed'; }
+  const el = document.getElementById('updateBanner');
+  if (el) el.outerHTML = updateBannerHtml();
+});

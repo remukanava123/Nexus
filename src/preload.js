@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-const EVENTS = ['library:updated', 'focus-search', 'state:update', 'navigate', 'launch:done', 'launch:phase', 'launch:update', 'barca:updated', 'matches:updated', 'news:updated', 'lock'];
+const EVENTS = ['library:updated', 'focus-search', 'state:update', 'navigate', 'launch:done', 'launch:phase', 'launch:update', 'barca:updated', 'matches:updated', 'news:updated', 'lock', 'update:available', 'update:progress'];
 
 contextBridge.exposeInMainWorld('api', {
   platform: process.platform,
@@ -51,6 +51,8 @@ contextBridge.exposeInMainWorld('api', {
   openDataFolder: () => ipcRenderer.invoke('data:openFolder'),
   checkUpdate: () => ipcRenderer.invoke('update:check'),
   appInfo: () => ipcRenderer.invoke('app:info'),
+  updateStatus: () => ipcRenderer.invoke('update:status'),
+  installUpdate: () => ipcRenderer.invoke('update:install'),
   setHours: (id, hours) => ipcRenderer.invoke('lifetime:set', id, hours),
   achievements: (id) => ipcRenderer.invoke('achievements:get', id),
   achievementsSummary: () => ipcRenderer.invoke('achievements:summary'),

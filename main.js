@@ -642,9 +642,15 @@ function notifyUser(title, body, view) {
 }
 
 // A newer GitHub release only produces a notification (once per version); the user opens the page and installs it themselves
+// Installing from inside Nexus only works for the installed copy (the installer puts Nexus in %LOCALAPPDATA%\Programs). Other copies get the download page.
+const installedCopy = () => process.platform === 'win32' && app.isPackaged && path.resolve(app.getPath('exe')).toLowerCase().startsWith(path.join(process.env.LOCALAPPDATA || '', 'Programs').toLowerCase());
+const updateInfo = () => (latestRelease ? { version: latestRelease.latest, url: latestRelease.url, canInstall: !!(latestRelease.installer && installedCopy()) } : null);
+let latestRelease = null; // result of the last GitHub check that found a newer version
 async function checkRelease(manual) {
   if (!manual && !store.data.settings.checkUpdates) return null;
   const res = await releaseCheck.check(app.getVersion());
+  latestRelease = res.newer ? res : null;
+  if (win && !win.isDestroyed()) win.webContents.send('update:available', updateInfo());
   if (res.newer && !manual && store.data.updateNotified !== res.latest && Notification.isSupported()) {
     store.data.updateNotified = res.latest;
     store.save();
@@ -1242,6 +1248,46 @@ function registerIpc() {
   ipcMain.handle('overlay:resetLayout', () => { overlay.resetLayout(); return true; });
   ipcMain.handle('overlay:stats', () => overlay.stats());
   ipcMain.handle('data:openFolder', () => shell.openPath(app.getPath('userData')));
+  ipcMain.handle('update:status', () => updateInfo());
+  // Downloads the installer from this project's GitHub release, checks it, and runs it. Nexus closes so the installer can replace it.
+  let installing = false;
+  ipcMain.handle('update:install', async () => {
+    const rel = latestRelease;
+    if (installing || !rel || !rel.installer || !installedCopy()) return { ok: false, error: 'No installer to run' };
+    const slug = releaseCheck.repoSlug();
+    if (!slug || !rel.installer.url.startsWith(`https://github.com/${slug}/releases/download/`)) return { ok: false, error: 'The installer is not from this project' };
+    installing = true;
+    const send = (pct) => { if (win && !win.isDestroyed()) win.webContents.send('update:progress', pct); };
+    try {
+      const dir = path.join(app.getPath('temp'), 'Nexus-update');
+      fs.rmSync(dir, { recursive: true, force: true });
+      fs.mkdirSync(dir, { recursive: true });
+      const file = path.join(dir, path.basename(rel.installer.name));
+      const res = await require('electron').net.fetch(rel.installer.url, { headers: { 'User-Agent': 'Nexus-launcher' } });
+      if (!res.ok || !res.body) throw new Error(`Download failed (${res.status})`);
+      const total = Number(res.headers.get('content-length')) || rel.installer.size || 0;
+      const hash = require('crypto').createHash('sha256');
+      const out = fs.createWriteStream(file);
+      let got = 0;
+      const reader = res.body.getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        hash.update(value); out.write(value); got += value.length;
+        if (total) send(Math.min(99, Math.round((got / total) * 100)));
+      }
+      await new Promise((r, j) => out.end((e) => (e ? j(e) : r())));
+      if (rel.installer.size && got !== rel.installer.size) throw new Error('The download is incomplete');
+      if (rel.installer.sha256 && hash.digest('hex') !== rel.installer.sha256) throw new Error('The download does not match GitHub\u2019s checksum, so it was not run');
+      send(100);
+      require('child_process').spawn(file, [], { detached: true, stdio: 'ignore' }).unref();
+      setTimeout(() => { app.isQuitting = true; app.quit(); }, 800);
+      return { ok: true };
+    } catch (e) {
+      installing = false;
+      return { ok: false, error: String(e && e.message || e) };
+    }
+  });
   ipcMain.handle('app:info', () => ({ version: app.getVersion() }));
   ipcMain.handle('lifetime:set', (_e, id, hours) => {
     const h = Math.round(Number(hours) * 10) / 10;

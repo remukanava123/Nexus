@@ -1339,3 +1339,15 @@ kbd { padding: 2px 7px; border-radius: 6px; background: var(--surface-3); border
 .about img { width: 56px; height: 56px; flex: none; }
 .about b { font-size: 16px; }
 .about small { display: block; color: var(--muted); font-size: 13px; line-height: 1.5; margin-top: 3px; }
+
+/* Update banner (Home page) */
+.update-banner { display: flex; align-items: center; gap: 16px; margin: 0 0 18px; padding: 14px 18px; border-radius: var(--radius); background: linear-gradient(90deg, rgba(var(--accent-rgb), .28), rgba(var(--accent-rgb), .10)); border: 1px solid rgba(var(--accent-rgb), .5); }
+.ub-icon { font-size: 22px; width: 42px; height: 42px; flex: none; display: grid; place-items: center; border-radius: 12px; background: rgba(var(--accent-rgb), .25); }
+.ub-text { flex: 1; min-width: 0; }
+.ub-text b { display: block; }
+.ub-text small, .ub-act small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.ub-err { color: #ff8a8a; }
+.ub-act { flex: none; min-width: 150px; text-align: right; }
+.ub-prog { width: 200px; margin-left: auto; text-align: left; }
+.ub-bar { height: 6px; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
+.ub-bar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .2s; }

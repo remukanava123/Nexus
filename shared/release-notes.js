@@ -10,7 +10,7 @@ module.exports = {
       ['🎨', 'New logo and sounds', 'A new logo on the startup screen, the taskbar and the tray, and animated sidebar icons with their own quiet sounds (smoke from the chimney, a rising stats line, a ball hitting the net for Barça). Turn the sounds off under Settings → Sound.'],
       ['⚙️', 'Simpler settings', 'Settings has a Basic and an Advanced tab, so the everyday options are easy to find.'],
       ['👋', 'Welcome guide', 'New installs get a short setup. You can open it again from Settings → Advanced.'],
-      ['🔔', 'Update notices', 'Nexus tells you when a new version is out on GitHub, and shows this page after you update.'],
+      ['🔔', 'Update notices', 'When a new version is out on GitHub, the Home page shows an "Update available" banner. One click downloads the installer, checks it, runs it and reopens Nexus. This page is shown once after you update.'],
     ],
   },
 };

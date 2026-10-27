@@ -123,7 +123,7 @@ function renderHome() {
   const heroItem = recGames[0] || allGames[0];
   const rows = s.rowCount || 12;
   const live = allGames.filter((g) => isRunning(g.id));
-  let html = '';
+  let html = updateBannerHtml();
 
   if (s.greeting) html += greetingHtml(allGames);
 

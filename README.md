@@ -12,7 +12,7 @@ A game and app launcher for Windows and Linux (Fedora, Bazzite), built with Elec
 - **Total hours:** games show hours played in total, for example "632h played, 43h in Nexus". Steam hours are read from Steam's own files on your PC (no login). Overwatch hours come from your public career profile (set your BattleTag in Settings). Epic, EA, HoYoPlay, Kuro and Battle.net don't share their playtime, so for those you can type your hours in on the game's page.
 - **Steam achievements:** a game's page shows how many you have unlocked, your rarest ones, the most recent, and what is still locked, all read from Steam's local files.
 - **Stats and advancements:** charts, per-game stats and over 120 advancements in tiers with rarity, progress bars and a few secret ones, plus a Steam-style popup with a sound when you unlock one.
-- **Welcome guide and update notes:** a short first-run setup, a Basic and an Advanced settings tab, a GitHub update check, and a "What's new" page shown once after you update.
+- **Welcome guide and update notes:** a short first-run setup, a Basic and an Advanced settings tab, an "Update available" banner on Home that downloads and runs the new installer from your GitHub release (installed copy only; other copies open the download page), and a "What's new" page shown once after you update.
 - **Gacha tools:** daily and weekly reset timers, stamina, banner countdowns and a pull planner for Honkai: Star Rail, Wuthering Waves and Genshin Impact.
 - **News:** patch notes and announcements for your games.
 - **Barça tab:** fixtures, results, tables, squad and news for FC Barcelona (La Liga, Champions League, Copa del Rey, Supercopa).

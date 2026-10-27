@@ -17,7 +17,7 @@ function isNewer(latest, current) {
   return false;
 }
 
-// Resolves { configured, latest, url, newer }. Never rejects: offline, rate limits and missing releases all give newer: false.
+// Resolves { configured, latest, url, newer, installer }. Never rejects: offline, rate limits and missing releases all give newer: false.
 async function check(current, slug = repoSlug()) {
   if (!slug) return { configured: false, newer: false };
   try {
@@ -28,7 +28,12 @@ async function check(current, slug = repoSlug()) {
     if (!res.ok) return { configured: true, newer: false, error: res.status };
     const rel = await res.json();
     if (!rel.tag_name || rel.draft || rel.prerelease) return { configured: true, newer: false };
-    return { configured: true, latest: rel.tag_name.replace(/^v/i, ''), url: rel.html_url, newer: isNewer(rel.tag_name, current) };
+    // The Windows installer attached to the release (what "Update now" downloads). GitHub also gives its SHA-256 when it has one.
+    const asset = (rel.assets || []).find((a) => /setup.*\.exe$/i.test(a.name) && a.browser_download_url);
+    return {
+      configured: true, latest: rel.tag_name.replace(/^v/i, ''), url: rel.html_url, newer: isNewer(rel.tag_name, current),
+      installer: asset ? { name: asset.name, url: asset.browser_download_url, size: asset.size, sha256: /^sha256:([0-9a-f]{64})$/i.test(asset.digest || '') ? asset.digest.slice(7).toLowerCase() : null } : null,
+    };
   } catch (e) {
     return { configured: true, newer: false, error: String(e && e.message || e) };
   }
