@@ -244,15 +244,15 @@ async function getGameNews(games, force) {
     if (!hoyo && !appid) continue;
     const fresh = out[g.id] && Date.now() - out[g.id].t < NEWS_TTL;
     if (fresh && !force) continue;
-    jobs.push((async () => {
+    jobs.push(async () => {
       try {
         const data = hoyo ? await hoyoNews(hoyo) : { items: await steamNews(appid), banners: [], version: '' };
         out[g.id] = { t: Date.now(), ...data };
       } catch { /* keep whatever we had */ }
-    })());
+    });
   }
-  // a few at a time, so a big Steam library does not fire dozens of requests at once
-  for (let i = 0; i < jobs.length; i += 6) await Promise.all(jobs.slice(i, i + 6));
+  // a few at a time, so a big Steam library does not fire dozens of requests at once (each batch starts only when the last is done)
+  for (let i = 0; i < jobs.length; i += 6) await Promise.all(jobs.slice(i, i + 6).map((run) => run()));
   cache.news.t = Date.now();
   saveSoon();
   const byGame = {};

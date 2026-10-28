@@ -51,15 +51,23 @@ function applyTheme(s) {
 
   root.setProperty('--radius', `${s.radius}px`);
   root.setProperty('--card', `${s.cardSize}px`);
+  root.setProperty('--gap', `${s.cardGap ?? 18}px`);
+  root.setProperty('--bg-k', String(Math.max(0, Number(s.bgStrength ?? 100)) / 100));
 
   const b = document.body;
   b.dataset.density = s.density;
   b.dataset.bg = s.bgStyle;
+  b.dataset.cover = s.coverShape || 'portrait';
+  b.dataset.hover = s.hoverEffect || 'lift';
+  b.dataset.font = s.fontFamily || 'segoe';
   b.classList.toggle('no-anim', !s.animations);
   b.classList.toggle('no-blur', !s.blur);
   b.classList.toggle('hide-badges', !s.showBadges);
   b.classList.toggle('hide-titles', !s.showTitles);
-  b.classList.toggle('hide-playtime', !s.showPlaytime);
+  b.classList.toggle('hide-fav', s.showFavStar === false);
+  b.classList.toggle('hide-running', s.showRunningBadge === false);
+  b.classList.toggle('side-icons', s.sidebarStyle === 'icons');
+  b.classList.toggle('plain-nav', s.sidebarColors === false);
 
   window.api.setTitlebar(t.bg, '#9aa0ae');
 }

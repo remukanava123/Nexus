@@ -1,20 +1,20 @@
 // Playtime tracker: one long-lived hidden PowerShell lists the running programs every few seconds,
 // and any game whose install folder (or exe) is among them counts as "playing".
-const { spawn } = require('child_process');
 const { EventEmitter } = require('events');
 const fs = require('fs');
 const path = require('path');
+const ps = require('./ps');
 const IS_LINUX = process.platform === 'linux';
 
-const POWERSHELL = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
-const INTERVAL_SECONDS = 8;
-const SCRIPT = `
+// Listing the programs is cheap (NX.ProcPaths in src/ps.js, no WMI), so it runs often enough that Nexus notices a game
+// closing within a few seconds. It also reads the path of most elevated games, which WMI couldn't.
+const INTERVAL_SECONDS = 3;
+const script = () => `
 $ErrorActionPreference = 'SilentlyContinue'
-[Console]::OutputEncoding = [Text.Encoding]::UTF8
+${ps.loader()}
 while ($true) {
-  # Elevated / protected games (HSR, WuWa) hide their path from us, so fall back to "?name.exe"
-  $paths = Get-CimInstance Win32_Process -Property ExecutablePath,Name | ForEach-Object { if ($_.ExecutablePath) { $_.ExecutablePath.ToLower() } elseif ($_.Name) { '?' + $_.Name.ToLower() } } | Sort-Object -Unique
-  [Console]::Out.WriteLine((ConvertTo-Json -Compress -InputObject @($paths)))
+  # one line: every program's lower-case path, or "?name.exe" when Windows hides it (protected games)
+  [Console]::Out.WriteLine([NX]::ProcPaths())
   Start-Sleep -Seconds ${INTERVAL_SECONDS}
 }`;
 
@@ -22,14 +22,13 @@ const HELPER = /crash|uninst|unins\d|redist|vc_redist|dxsetup|dotnet|installer/i
 const MAX_SESSIONS = 3000;
 
 class Tracker extends EventEmitter {
-  // getGames(): [{ id, name, dirs: [folder], exes: [file] }] for everything worth tracking
+  // getGames(): [{ id, name, dirs: [folder], exes: [file], names: [exe name] }] for everything worth tracking
   constructor(store, getGames) {
     super();
     this.store = store;
     this.getGames = getGames;
     this.child = null;
-    this.buffer = '';
-    this.active = new Map(); // id -> { start, lastTick, reminded }
+    this.active = new Map(); // id -> { start, lastTick, remindAt? }
     this.restartTimer = null;
     this.lastSave = 0;
     this.stopped = true;
@@ -46,22 +45,15 @@ class Tracker extends EventEmitter {
       this.timer = setInterval(tick, INTERVAL_SECONDS * 1000);
       return;
     }
-    this.child = spawn(POWERSHELL, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', SCRIPT], { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
-    this.child.stdout.setEncoding('utf8');
-    this.child.stdout.on('data', (chunk) => {
-      this.buffer += chunk;
-      let i;
-      while ((i = this.buffer.indexOf('\n')) >= 0) {
-        const line = this.buffer.slice(0, i).trim();
-        this.buffer = this.buffer.slice(i + 1);
-        if (!line) continue;
-        try { this.onSnapshot([].concat(JSON.parse(line))); } catch {}
-      }
+    const child = ps.run(script(), {
+      onLine: (line) => { if (this.child === child) this.onSnapshot(line.split('|')); },
+      onExit: () => {
+        if (this.child !== child) return; // a helper that was stopped already; a newer one may be running
+        this.child = null;
+        if (!this.stopped) this.restartTimer = setTimeout(() => this.start(), 5000);
+      },
     });
-    this.child.on('exit', () => {
-      this.child = null;
-      if (!this.stopped) this.restartTimer = setTimeout(() => this.start(), 5000);
-    });
+    this.child = child;
   }
 
   stop() {
@@ -87,7 +79,7 @@ class Tracker extends EventEmitter {
     for (const id of running) {
       let a = this.active.get(id);
       if (!a) {
-        a = { start: now, lastTick: now, reminded: false };
+        a = { start: now, lastTick: now };
         this.active.set(id, a);
         this.store.data.recents[id] = now;
         changed = true;
@@ -130,6 +122,20 @@ class Tracker extends EventEmitter {
   }
 }
 
+// Folders that hold unrelated programs too: a game whose exe sits right in one of these is only matched by its exe
+const SHARED_DIR = /^[a-z]:\\$|^[a-z]:\\(windows|program files|program files \(x86\)|programdata|users|games)\\$|\\(system32|syswow64|desktop|downloads|documents|appdata\\local|appdata\\roaming|windowsapps)\\$|^[a-z]:\\users\\[^\\]+\\$/i;
+
+// The folder to watch for a game that was found as a single exe (a custom game, a Start Menu shortcut's target).
+// That exe is often only a launcher that starts the real game next to it (Roblox's launcher starts RobloxPlayerBeta.exe),
+// so the whole folder counts, unless it is a shared one. A "version-..." folder (Roblox) is replaced on every update,
+// so its parent is watched instead.
+function folderOf(exe) {
+  let dir = path.dirname(exe);
+  if (/^version-/i.test(path.basename(dir))) dir = path.dirname(dir);
+  if (!dir.endsWith('\\')) dir += '\\';
+  return SHARED_DIR.test(dir) ? null : dir;
+}
+
 // Turn the scanned game list into the folders / files to look for
 function watchList(items) {
   if (IS_LINUX) return watchListLinux(items);
@@ -138,8 +144,10 @@ function watchList(items) {
     let isFile = /\.(exe|lnk|bat|cmd)$/i.test(loc);
     if (!isFile) { try { isFile = fs.statSync(i.location).isFile(); } catch {} }
     // Process names to fall back on when Windows won't tell us the path (only used for path-less processes)
-    const names = (i.procNames || [i.iconPath]).filter((n) => n && /\.exe$/i.test(n)).map((n) => path.basename(n).toLowerCase()).filter((n) => !/^(launcher|setup|update)/.test(n));
-    return { id: i.id, name: i.name, dirs: isFile ? [] : [loc.endsWith('\\') ? loc : `${loc}\\`], exes: isFile ? [loc] : [], names };
+    const names = [...(i.procNames || []), i.iconPath].filter((n) => n && /\.exe$/i.test(n)).map((n) => path.basename(n).toLowerCase()).filter((n) => !/^(launcher|setup|update)/.test(n));
+    const folder = isFile && /\.exe$/.test(loc) ? folderOf(loc) : null;
+    const dirs = !isFile ? [loc.endsWith('\\') ? loc : `${loc}\\`] : folder ? [folder] : [];
+    return { id: i.id, name: i.name, dirs, exes: isFile ? [loc] : [], names };
   });
 }
 
@@ -149,9 +157,9 @@ function watchListLinux(items) {
     const loc = (i.location || '').toLowerCase();
     let isFile = false;
     try { isFile = !!loc && fs.statSync(i.location).isFile(); } catch {}
-    const names = (i.procNames || []).map((n) => String(n).toLowerCase().replace(/.exe$/, ''));
+    const names = (i.procNames || []).map((n) => String(n).toLowerCase().replace(/\.exe$/, ''));
     return { id: i.id, name: i.name, dirs: loc && !isFile ? [loc.endsWith('/') ? loc : `${loc}/`] : [], exes: isFile ? [loc] : [], names };
   });
 }
 
-module.exports = { Tracker, watchList };
+module.exports = { Tracker, watchList, folderOf };

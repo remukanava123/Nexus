@@ -12,7 +12,7 @@ const steamCdn = (appid, file) => `https://shared.cloudflare.steamstatic.com/sto
 
 const SYS32 = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32');
 const REG = path.join(SYS32, 'reg.exe');
-const POWERSHELL = path.join(SYS32, 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+const { POWERSHELL } = require('./ps');
 
 function run(cmd, args) {
   return new Promise((resolve) => {
@@ -116,7 +116,7 @@ async function scanEpic() {
   for (const f of files) {
     let m;
     try { m = JSON.parse(await fsp.readFile(path.join(dir, f), 'utf8')); } catch { continue; }
-    if (m.bIsIncompleteInstall || (m.MainGameAppName && m.MainGameAppName !== m.AppName)) continue;
+    if (!m.DisplayName || !m.AppName || m.bIsIncompleteInstall || (m.MainGameAppName && m.MainGameAppName !== m.AppName)) continue;
     const exe = m.LaunchExecutable ? path.join(m.InstallLocation, m.LaunchExecutable) : null;
     const key = encodeURIComponent(`${m.CatalogNamespace}:${m.CatalogItemId}:${m.AppName}`);
     games.push({
@@ -406,6 +406,7 @@ function promoteGames(list) {
     if (a.type === 'app' && (GAME_APP.test(a.name.trim()) || (a.installDir && GAME_UWP_DIR.test(a.installDir)))) {
       a.type = 'game';
       a.source = a.launch && a.launch.kind === 'uwp' ? 'xbox' : 'app';
+      if (a.launch && a.launch.kind === 'uwp' && a.installDir) a.location = a.installDir; // lets the tracker see a Store game running
     }
     delete a.installDir;
     out.push(a);
@@ -428,6 +429,6 @@ async function scanAll(shell) {
   return [...games, ...apps.filter((a) => !isGame(a))];
 }
 
-function norm(s) { return s.toLowerCase().replace(/[®™©:'’.\-–]/g, '').replace(/\s+/g, ' ').trim(); }
+function norm(s) { return String(s || '').toLowerCase().replace(/[®™©:'’.\-–]/g, '').replace(/\s+/g, ' ').trim(); }
 
 module.exports = { scanAll };

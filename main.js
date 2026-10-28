@@ -18,9 +18,11 @@ const bnet = require('./src/bnet');
 const updates = require('./src/updates');
 const releaseCheck = require('./src/release-check');
 const lifetime = require('./src/lifetime');
+const { addProcNames } = require('./src/proc-names');
 const RELEASE_NOTES = require('./shared/release-notes');
 const { createOverlay } = require('./src/overlay');
 const overwatchApi = require('./src/overwatch');
+const ps = require('./src/ps');
 
 const IS_LINUX = process.platform === 'linux';
 const linux = IS_LINUX ? require('./src/linux') : null;
@@ -32,7 +34,6 @@ if (IS_LINUX) {
 
 const ICON = path.join(__dirname, 'assets', 'icon.png');
 const TRAY_ICON = path.join(__dirname, 'assets', 'tray.png'); // a simpler version of the logo that stays readable at 16 px
-const POWERSHELL = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
 const SETTING_DEFAULTS = Store.DEFAULT_SETTINGS;
 
 // "Low resource mode" (Settings → Data & maintenance): no GPU acceleration, which frees the GPU process's memory.
@@ -69,6 +70,7 @@ if (process.argv.includes('--restore-shell')) {
 
 function init() {
   if (!IS_LINUX) app.setAppUserModelId('local.nexus.launcher'); // needed for Windows notifications
+  ps.init(app.getPath('userData')).catch(() => {}); // builds the Win32 helper DLL once, so later PowerShell runs start fast
   store = new Store(app.getPath('userData'));
   if (shellActive) store.runtime.shellMode = 'shell';
   const s = store.data.settings;
@@ -85,9 +87,10 @@ function init() {
   tracker.on('change', () => { createTray(); sendState(); }); // rebuild the tray menu so its "Playing: ..." line is current
   tracker.on('end', (id, ms) => {
     if (ms >= 60000) { sendState(); setTimeout(() => refreshLifetime().catch(() => {}), 20000); } // Steam writes the new total a moment after the game closes
-    // After a game: come straight back, fullscreen, so the desktop never shows. (When Nexus is the desktop, always: a blank screen is the alternative.)
     const nothingRunning = tracker.active.size === 0; // (store.runtime.running is only refreshed after this event)
-    if (nothingRunning) releaseLock(); // no game left to be locked behind
+    // The game Nexus launched (and is waiting behind, or ghosting over) has closed: come back now
+    if (backdrop && backdrop.id === id && nothingRunning) { stopBackdrop(); returnToNexus(); return; }
+    // After a game: come straight back, fullscreen, so the desktop never shows. (When Nexus is the desktop, always: a blank screen is the alternative.)
     if (nothingRunning && (store.runtime.shellMode === 'shell' || (store.data.settings.returnAfterGame && ms >= 45000))) setTimeout(returnToNexus, 1500);
   });
   tracker.on('tick', onPlayTick);
@@ -109,7 +112,6 @@ function init() {
 function returnToNexus() {
   stopBackdrop();
   exitGhost();
-  releaseLock();
   if (!win || win.isDestroyed() || (win.isVisible() && win.isFocused())) return;
   if (store.data.settings.returnFullscreen || shellActive) win.setFullScreen(true);
   showWindow();
@@ -156,7 +158,7 @@ function createWindow(startHidden) {
   win.setMenu(null);
   if (s.alwaysOnTop) win.setAlwaysOnTop(true, 'screen-saver');
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
-  win.webContents.on('did-finish-load', () => win.webContents.setZoomFactor((store.data.settings.uiScale || 100) / 100));
+  win.webContents.on('did-finish-load', () => win.webContents.setZoomFactor(zoomFor(store.data.settings.uiScale)));
   // Big-screen-on-startup means the user wants to see it, so the --hidden autostart flag doesn't apply
   win.once('ready-to-show', () => {
     const wantsVisible = shellActive || !startHidden || s.startBigScreen || s.startFullscreen;
@@ -231,7 +233,6 @@ function showWindow() {
   if (!win) return;
   exitGhost();
   cancelStepBehind();
-  releaseLock(); // the user asked for Nexus: it can be used again
   cancelLaunchWait(); // the user brought Nexus back, so don't fade it away again when the game shows up
   if (win.isMinimized()) win.restore();
   const wasVisible = win.isVisible();
@@ -272,13 +273,13 @@ function sendPhase(phase, extra) {
 // clicked, an always-on-top app), so we put ourselves back on top a couple of times a second. Never takes focus away.
 let ghostOn = false; // Nexus is on top of the game at 1% opacity, click-through
 
-function keepOnTop() {
+function keepOnTop(ms = 400) {
   clearInterval(coverTimer);
   coverTimer = setInterval(() => {
     if (!win || win.isDestroyed() || !win.isVisible()) return;
     win.setAlwaysOnTop(true, TOP);
     win.moveTop();
-  }, 400);
+  }, ms);
 }
 
 // Back from the 1% state: clicks land on Nexus again and "on top" goes back to what the setting says
@@ -295,12 +296,7 @@ function startCover() {
   win.setAlwaysOnTop(true, TOP);
   win.moveTop();
   win.focus();
-  clearInterval(coverTimer);
-  coverTimer = setInterval(() => {
-    if (!win || win.isDestroyed() || !win.isVisible()) return;
-    win.setAlwaysOnTop(true, TOP);
-    win.moveTop();
-  }, 400);
+  keepOnTop();
 }
 function endCover() {
   clearInterval(coverTimer);
@@ -313,12 +309,10 @@ function endCover() {
 // ---------- Stepping behind what was launched ----------
 // Nexus never closes or hides itself after a launch. It fades to invisible (and lets clicks through), the game or app
 // comes to the front, Nexus slips in right behind it in the window order, and a few seconds later it is solid again
-// back there, out of sight. Behind a game it is also locked: it can't be activated (so a launcher closing can't hand it
-// the foreground) and the page shows a lock screen that swallows stray clicks, keys and controller input.
+// back there, out of sight.
 const BEHIND_SHOW_MS = 5000;
 let behindGen = 0; // bumped whenever the user brings Nexus back, so a step-behind in progress stops
 let behindTimer = null;
-let locked = false;
 
 const myHwnd = () => (IS_LINUX ? '1' : win.getNativeWindowHandle().readBigUInt64LE(0).toString());
 
@@ -329,20 +323,11 @@ function cancelStepBehind() {
   if (win && !win.isDestroyed()) win.setIgnoreMouseEvents(false);
 }
 
-function lockBehindGame() {} // the lock screen was removed: Nexus stays clickable behind the game
-function releaseLock() {
-  if (!locked) return;
-  locked = false;
-  if (!win || win.isDestroyed()) return;
-  win.setFocusable(true);
-  win.webContents.send('lock', null);
-}
-
 // target: the window to go behind (raised first), or null for "whatever opens next" (waitMs) / the very back.
-// lock: the game's name, to lock Nexus while it runs. tidy runs just before Nexus is shown again back there
-// (leaving fullscreen then, not while invisible: that would make the window solid and catch clicks again).
+// game: true when target is a game, so Nexus also goes to the very back. tidy runs just before Nexus is shown again
+// back there (leaving fullscreen then, not while invisible: that would make the window solid and catch clicks again).
 let beforeShow = null;
-async function stepBehind(target, { lock = null, waitMs = 0, since = 0, tidy = null } = {}) {
+async function stepBehind(target, { game = false, waitMs = 0, since = 0, tidy = null } = {}) {
   if (!win || win.isDestroyed()) return;
   const s = store.data.settings;
   if (IS_LINUX) {
@@ -365,15 +350,14 @@ async function stepBehind(target, { lock = null, waitMs = 0, since = 0, tidy = n
   if (gen !== behindGen || win.isDestroyed()) return;
   clearInterval(coverTimer); coverTimer = null;
   win.setAlwaysOnTop(false);
-  if (lock) lockBehindGame(lock);
   await launchWatch.placeBehind(myHwnd(), target, { raise: true, waitMs, since });
   // behind a game: right at the very back, under the game and every other window (an elevated game can refuse to be raised or to have us slotted under it)
-  if (lock) await launchWatch.placeBehind(myHwnd(), null, { raise: false });
+  if (game) await launchWatch.placeBehind(myHwnd(), null, { raise: false });
   if (gen !== behindGen || win.isDestroyed()) return;
   behindTimer = setTimeout(() => {
     if (gen !== behindGen || !win || win.isDestroyed()) return;
     if (beforeShow) { const f = beforeShow; beforeShow = null; f(); }
-    if (lock) launchWatch.placeBehind(myHwnd(), null, { raise: false }); // tidy() may have left fullscreen: stay at the back
+    if (game) launchWatch.placeBehind(myHwnd(), null, { raise: false }); // tidy() may have left fullscreen: stay at the back
     win.setIgnoreMouseEvents(false);
     if (s.launchFade && s.animations) fadeWindow(0, 1, 400); else win.setOpacity(1);
   }, BEHIND_SHOW_MS);
@@ -390,34 +374,30 @@ function minGameWindow() {
   return { minW: Math.round(Math.min(want, capW)), minH: Math.round(Math.min(want * 9 / 16, capH)) };
 }
 
-// While a game runs with Nexus behind it: notice when the game's window is gone and bring Nexus forward straight away
-// (the playtime tracker only checks every 8 s). The tracker is asked to confirm, so a window that is briefly recreated
-// (a resolution change) doesn't pop Nexus over the game.
+// While a game Nexus launched runs with Nexus behind it (or ghosting over it): bring Nexus forward as soon as the game
+// closes. The playtime tracker already checks every few seconds, so normally its 'end' event does this (see init) and
+// nothing extra runs while you play. Only when the tracker is off, or never recognises the game, does a slow window
+// watcher stand in, and a game window that is briefly recreated (a resolution change) doesn't count as closing.
 let backdrop = null;
 function stopBackdrop() {
-  if (backdrop) { clearTimeout(backdrop.timer); if (backdrop.watcher) backdrop.watcher.stop(); backdrop = null; }
+  if (backdrop) { clearTimeout(backdrop.timer); clearTimeout(backdrop.check); if (backdrop.watcher) backdrop.watcher.stop(); backdrop = null; }
 }
 function startBackdropWatch(it, spec) {
   stopBackdrop();
-  const job = { watcher: null, timer: null };
+  const job = { id: it.id, watcher: null, timer: null, check: null };
   backdrop = job;
-  let seen = false, gone = 0, checking = false;
-  job.watcher = launchWatch.startWatch(spec, (it.readyNames || []).map((n) => n.toLowerCase()), (sample) => {
-    if (backdrop !== job) return;
-    if (sample) { seen = true; gone = 0; return; }
-    if (!seen || checking || ++gone < 2) return; // about 3 s without any game window
-    checking = true;
-    const since = Date.now();
-    const confirm = () => {
+  const watchWindow = () => {
+    let seen = false, gone = 0;
+    job.watcher = launchWatch.startWatch(spec, (it.readyNames || []).map((n) => n.toLowerCase()), (sample) => {
       if (backdrop !== job) return;
-      const stillRunning = store.data.settings.trackPlaytime && tracker && tracker.active.size > 0;
-      if (!stillRunning) { stopBackdrop(); returnToNexus(); return; }
-      if (Date.now() - since > 10000) { checking = false; gone = 0; return; } // the tracker still sees the game: false alarm
-      setTimeout(confirm, 500);
-    };
-    confirm();
-  }, { interval: 1500 }); // while you play it only needs to notice the window closing, so look less often
-  job.timer = setTimeout(() => { if (backdrop === job) { stopBackdrop(); releaseLock(); } }, 12 * 3600 * 1000);
+      if (sample) { seen = true; gone = 0; return; }
+      if (seen && ++gone >= 3) { stopBackdrop(); returnToNexus(); } // about 6 s without any game window
+    }, { interval: 2000 });
+  };
+  const tracked = () => store.data.settings.trackPlaytime && tracker && tracker.active.has(it.id);
+  if (tracked()) { /* the tracker's 'end' event brings Nexus back */ }
+  else job.check = setTimeout(() => { if (backdrop === job && !tracked()) watchWindow(); }, 20000); // give the tracker a few polls first
+  job.timer = setTimeout(() => { if (backdrop === job) stopBackdrop(); }, 12 * 3600 * 1000);
 }
 
 function stopPress() {
@@ -450,7 +430,6 @@ function hideAfterLaunch(it) {
   const spec = it && it.type === 'game' ? watchList([it])[0] : null; // games always get the cover; the hide setting is for apps and sites
   if (!spec && !s.hideOnLaunch) { startPress(it); return; }
   cancelLaunchWait();
-  releaseLock();
   const beat = s.launchConfetti ? 1100 : 450;
   if (!spec) {
     // an app or site: step behind whatever window it opens
@@ -462,7 +441,7 @@ function hideAfterLaunch(it) {
 
   const t0 = Date.now();
   const settler = new launchWatch.Settler({ settleMs: 3500 + Math.max(0, Number(s.launchExtraWait) || 0) * 1000, ...minGameWindow() });
-  const wait = { state: 'waiting', watcher: null, timer: null, upd: null, net: null };
+  const wait = { state: 'waiting', item: it, watcher: null, timer: null, upd: null, net: null, handedOff: false };
   const cleanup = () => {
     clearTimeout(wait.timer); clearInterval(wait.upd);
     if (wait.watcher) wait.watcher.stop();
@@ -476,6 +455,7 @@ function hideAfterLaunch(it) {
   let launcherHwnd = null;
   let stuckSince = 0; // since when the launcher has shown something other than a launch word (an update, a login...)
   let launcherSince = 0; // since when the launcher window has been open without a button we can use
+  let longWait = false; // the launcher showed a greyed-out Start: allow it longer
   // ----- updates: is this launch really "installing an update"? -----
   let updating = false; // an update is downloading right now
   let updateClicked = false; // we pressed the launcher's Update button
@@ -495,11 +475,6 @@ function hideAfterLaunch(it) {
       if (launchWait === wait) launchWait = null;
       const game = why === 'ready' && hwnd; // the game's window is up and playing
       if (why === 'ready') sendPhase('ready');
-      if (why === 'handoff') {
-        // The launcher needs a human (a login, a prompt): step aside so they can use it
-        sendPhase('handoff');
-        try { new Notification({ title: it.name, body: 'The launcher needs you. Nexus has stepped aside so you can use it.' }).show(); } catch {}
-      }
       if (game && !IS_LINUX && (s.gameMode === 'ghost' || s.alwaysOnTop)) {
         // "On top, nearly invisible" ("always on top" can't be behind anything): fade to 1%, click-through, the game keeps the keyboard
         if (s.launchFade && s.animations) await new Promise((res) => fadeWindow(win.getOpacity(), 0.01, 900, res)); else win.setOpacity(0.01);
@@ -516,20 +491,37 @@ function hideAfterLaunch(it) {
       }
       win.webContents.send('launch:done', { behind: true });
       if (game) {
-        // Stay fullscreen right behind the game, locked, until it closes
+        // Stay fullscreen right behind the game until it closes
         coverForced = false;
         startBackdropWatch(it, spec);
-        await stepBehind(hwnd, { lock: it.name });
-      } else {
-        // Gave up waiting, "Hide Nexus now", or the launcher needs the user: go behind the launcher, or to the back
-        await stepBehind(why === 'handoff' ? hwnd : null, { tidy: endCover });
+        await stepBehind(hwnd, { game: true });
+      } else if (!wait.handedOff) {
+        // Gave up waiting, or "Hide Nexus now": go to the back
+        await stepBehind(null, { tidy: endCover });
       }
     })();
+  };
+  // The launcher needs a person (a login, a prompt, a button Nexus won't press): step aside so they can use it, but keep
+  // waiting. The launcher's Start button is still pressed the moment it shows up, and when the game appears Nexus
+  // goes behind it as usual. hwnd is the launcher's window, or null for "whatever comes to the front".
+  wait.handoff = (hwnd) => {
+    if (wait.state !== 'waiting' || wait.handedOff) return;
+    wait.handedOff = true;
+    armTimeout(15 * 60000); // plenty of time to log in or click through the launcher
+    sendPhase('handoff');
+    try { new Notification({ title: it.name, body: 'The launcher needs you. Nexus has stepped aside and will start the game when the launcher is ready.' }).show(); } catch {}
+    if (win && !win.isDestroyed()) win.webContents.send('launch:done', { behind: true });
+    stepBehind(hwnd || null, { tidy: endCover });
   };
   launchWait = wait;
   startCover();
   setPhase('starting');
-  const armTimeout = (ms) => { clearTimeout(wait.timer); wait.timer = setTimeout(() => wait.finish('timeout'), ms); };
+  // Giving up on a game behind a launcher whose Start button was never pressed would leave the launcher open and the
+  // game never started, so step aside instead and keep pressing in the background.
+  const armTimeout = (ms) => {
+    clearTimeout(wait.timer);
+    wait.timer = setTimeout(() => (it.autoPress && !pressed && !wait.handedOff ? wait.handoff(launcherHwnd) : wait.finish('timeout')), ms);
+  };
   armTimeout(GAME_WAIT_MS);
 
   // Every 1.5 s: is something being downloaded? Steam says exactly; for the rest we watch how fast the PC is downloading.
@@ -572,8 +564,11 @@ function hideAfterLaunch(it) {
       if (ev.type === 'button') {
         launcherSince = 0;
         const label = ev.name || '';
-        const ok = ev.enabled && (new RegExp(it.autoPress.start || launcherPress.DEFAULT_START, 'i').test(label) || (s.autoUpdate && new RegExp(launcherPress.DEFAULT_UPDATE, 'i').test(label)));
-        if (ok) stuckSince = 0; else stuckSince = stuckSince || Date.now();
+        // A Start (or allowed Update) button that is greyed out is the launcher still checking files or starting up:
+        // that is waiting, not stuck. Anything else (Install, Log in...) needs the user.
+        const ours = new RegExp(it.autoPress.start || launcherPress.DEFAULT_START, 'i').test(label) || (s.autoUpdate && new RegExp(launcherPress.DEFAULT_UPDATE, 'i').test(label));
+        if (ours) stuckSince = 0; else stuckSince = stuckSince || Date.now();
+        if (ours && !ev.enabled && !longWait) { longWait = true; armTimeout(10 * 60000); } // checking files can take minutes
       }
       if (ev.type === 'updated') { updateClicked = true; stuckSince = 0; }
       if (ev.type === 'clicked') { pressed = true; pressedAt = Date.now(); stuckSince = 0; setPhase('pressed'); }
@@ -592,13 +587,13 @@ function hideAfterLaunch(it) {
     const r = settler.feed(sample, elapsed);
     const big = r.phase === 'settling' || r.phase === 'settled';
     if (!big) heard = 0; else if (sound > 0) heard++;
-    if (it.autoPress && !updating) {
+    if (it.autoPress && !updating && !wait.handedOff) {
       // The launcher needs a person: it shows something we won't press (a login...) for a while, or never shows a button at all.
       // After we pressed Update the button says "Updating 45%" and the like, which is not stuck, so allow 15 minutes then.
-      const stuckLimit = updateClicked ? 15 * 60000 : 10000;
-      if (!settler.seen && ((stuckSince && now - stuckSince > stuckLimit) || (launcherSince && now - launcherSince > 40000))) return wait.finish('handoff', launcherHwnd);
+      const stuckLimit = updateClicked ? 15 * 60000 : 15000;
+      if (!settler.seen && ((stuckSince && now - stuckSince > stuckLimit) || (launcherSince && now - launcherSince > 60000))) wait.handoff(launcherHwnd);
       // Start was pressed but no game window ever came (a prompt inside the launcher, say)
-      if (pressed && !settler.seen && now - pressedAt > 75000) return wait.finish('handoff', launcherHwnd);
+      else if (pressed && !settler.seen && now - pressedAt > 75000) wait.handoff(launcherHwnd);
     }
     if (updating) { settledAt = 0; return; } // the cover shows the update; the window can't be the finished game yet
     if (r.phase !== 'settled') settledAt = 0;
@@ -608,7 +603,7 @@ function hideAfterLaunch(it) {
     }
     if (settledAt && (heard >= 2 || now - settledAt >= SILENT_GAME_MS)) return wait.finish('ready', r.hwnd);
     // "settled" without sound yet: the window is ready, the game may still be loading
-    if (!(it.autoPress && !pressed && !settler.seen)) setPhase(r.phase === 'settled' ? 'listening' : r.phase === 'starting' && pressed ? 'pressed' : r.phase);
+    if (!wait.handedOff && !(it.autoPress && !pressed && !settler.seen)) setPhase(r.phase === 'settled' ? 'listening' : r.phase === 'starting' && pressed ? 'pressed' : r.phase);
   }, { audio: true });
 }
 
@@ -627,7 +622,7 @@ function registerHotkey(accel) {
   return false;
 }
 
-app.on('before-quit', () => { app.isQuitting = true; if (overlay) overlay.stop(); if (tracker) tracker.stop(); });
+app.on('before-quit', () => { app.isQuitting = true; if (overlay) overlay.stop(); if (tracker) tracker.stop(); if (store) store.saveNow(); });
 app.on('will-quit', () => globalShortcut.unregisterAll());
 app.on('window-all-closed', (e) => e.preventDefault());
 
@@ -719,18 +714,43 @@ const favicon = (url) => {
   try { return `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}&sz=128`; } catch { return null; }
 };
 
-function customToItem(c) {
+// Where a custom shortcut really points, so the tracker can see the game running: a .lnk's target exe, or for a
+// steam://rungameid .url the Steam game's folder. Falls back to the file itself.
+function shortcutTarget(file, found) {
+  if (IS_LINUX || !file) return null;
+  try {
+    if (/\.lnk$/i.test(file)) {
+      const t = shell.readShortcutLink(file).target;
+      return t && fs.existsSync(t) ? t : null;
+    }
+    if (/\.url$/i.test(file)) {
+      const url = (fs.readFileSync(file, 'utf8').match(/^URL=(.+)$/im) || [])[1] || '';
+      const appid = (url.match(/^steam:\/\/rungameid\/(\d+)/i) || [])[1];
+      const g = appid && (found || []).find((i) => i.appid === appid);
+      return g && g.location ? g.location : null;
+    }
+  } catch {}
+  return null;
+}
+
+function customToItem(c, found = items) {
   if (c.kind === 'web') {
     return { id: c.id, type: 'web', source: 'web', name: c.name, url: c.url, icon: favicon(c.url), custom: true, launch: { kind: 'url', target: c.url } };
   }
   let isExe = /\.exe$/i.test(c.path);
-  if (IS_LINUX) { try { fs.accessSync(c.path, fs.constants.X_OK); isExe = !fs.statSync(c.path).isDirectory() && !/\.desktop$/i.test(c.path); } catch { isExe = false; } }
+  let launch;
+  if (IS_LINUX) {
+    // a .desktop file has to be started through its Exec line; opened as a file it would land in a text editor
+    if (/\.desktop$/i.test(c.path)) launch = { kind: 'desktop', target: c.path };
+    try { fs.accessSync(c.path, fs.constants.X_OK); isExe = !fs.statSync(c.path).isDirectory() && !/\.desktop$/i.test(c.path); } catch { isExe = false; }
+  }
+  const target = isExe ? null : shortcutTarget(c.path, found);
   return {
     id: c.id, type: c.category === 'game' ? 'game' : 'app', source: 'custom', name: c.name, custom: true,
-    iconPath: c.path, location: c.path,
+    iconPath: target && /\.exe$/i.test(target) ? target : c.path, location: target || c.path,
     ...(c.autoPress ? { autoPress: c.autoPress } : {}), // optional: press a launcher's Start button (edit library.json)
     ...(c.procNames ? { procNames: c.procNames } : {}),
-    launch: isExe ? { kind: 'exe', target: c.path } : { kind: 'open', target: c.path },
+    launch: launch || (isExe ? { kind: 'exe', target: c.path } : { kind: 'open', target: c.path }),
   };
 }
 
@@ -767,12 +787,18 @@ async function applyIcons() {
 }
 
 let scanned = false; // a real scan has finished this run
+let scanGen = 0; // only the newest of overlapping scans gets to replace the library
 function getLibrary(rescan) {
   if (!scanning || rescan) {
-    scanning = (async () => {
+    const gen = ++scanGen;
+    const job = (async () => {
       const found = await scanner.scanAll(shell);
+      if (gen !== scanGen) return;
+      const next = [...found, ...store.data.custom.map((c) => customToItem(c, found))];
+      await addProcNames(next, store).catch(console.error); // so protected games (anti-cheat) are still recognised while they run
+      if (gen !== scanGen) return;
       store.data.libCache = found; scanned = true; store.save(); // next start shows this straight away
-      items = [...found, ...store.data.custom.map(customToItem)];
+      items = next;
       watched = watchList(items);
       refreshLifetime().catch(console.error);
       seedStarterTags();
@@ -780,6 +806,9 @@ function getLibrary(rescan) {
       await applyIcons();
       fetchMissingArt().then(fetchMissingIcons).catch(console.error);
     })();
+    // A scan that failed must not stick: the next request scans again instead of getting the same error forever
+    job.catch(() => { if (scanning === job) scanning = null; });
+    scanning = job;
   }
   return scanning;
 }
@@ -863,13 +892,13 @@ const newsGames = () => items.filter((i) => i.type === 'game').map((i) => ({ id:
 async function refreshNews() {
   if (!items.length) return;
   try {
-    const res = annotateNews(await feeds.getGameNews(newsGames(), true));
+    const res = annotateNews(await feeds.getGameNews(newsGames(), false)); // the feeds' own 30-minute cache decides what is old
     if (win && !win.isDestroyed()) win.webContents.send('news:updated', res);
   } catch { /* offline: try again later */ }
 }
 
 // ---------- Launching ----------
-const psQuote = (s) => `'${String(s).replace(/'/g, "''")}'`;
+const bnetBusy = new Set(); // Battle.net product codes Nexus is currently waiting to start
 
 async function launch(l, it) {
   if (l.kind === 'url') return shell.openExternal(l.target);
@@ -882,13 +911,20 @@ async function launch(l, it) {
   if (l.kind === 'bnet') {
     // Not awaited: it can take a while (Battle.net starting and logging in) and the cover shows the progress meanwhile
     if (!fs.existsSync(l.target)) throw new Error(`File not found: ${l.target}`);
+    if (bnetBusy.has(l.code)) return; // already waiting for Battle.net to start this game: a second click changes nothing
+    bnetBusy.add(l.code);
     const name = (it && it.name) || 'Battle.net';
     const tell = (body) => { try { new Notification({ title: name, body }).show(); } catch {} };
+    const mine = () => launchWait && launchWait.item === it; // phases only matter while the cover for this game is up
     bnet.launchViaBattleNet({
       exe: l.target, code: l.code,
-      onPhase: (p) => sendPhase(p),
-      onNeedsLogin: () => tell('Battle.net is waiting for you to log in. Nexus will start the game as soon as you do.'),
-    }).then((r) => { if (r === 'timeout') tell("Battle.net didn't finish logging in, so the game wasn't started."); }).catch(() => {});
+      onPhase: (p) => { if (mine()) sendPhase(p); },
+      onNeedsLogin: () => {
+        tell('Battle.net is waiting for you to log in. Nexus will start the game as soon as you do.');
+        if (mine()) launchWait.handoff(null); // step aside so the login screen can be used
+      },
+    }).then((r) => { if (r === 'timeout') tell("Battle.net didn't finish logging in, so the game wasn't started."); })
+      .catch(() => {}).finally(() => bnetBusy.delete(l.code));
     return;
   }
   if (l.kind === 'open') {
@@ -898,12 +934,6 @@ async function launch(l, it) {
   }
   if (l.kind === 'uwp') {
     spawn('explorer.exe', [`shell:AppsFolder\\${l.target}`], { detached: true, stdio: 'ignore' }).unref();
-    return;
-  }
-  if (l.kind === 'wuwa') {
-    if (!fs.existsSync(l.target)) throw new Error(`File not found: ${l.target}`);
-    const script = path.join(__dirname, 'src', 'launch-wuwa.ps1').replace('app.asar', 'app.asar.unpacked');
-    spawn(POWERSHELL, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', script, '-Launcher', l.target], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
     return;
   }
   if (l.kind === 'exe') {
@@ -930,10 +960,11 @@ function setLoginItem(on) {
 }
 
 // ---------- Settings side effects ----------
+const zoomFor = (scale) => Math.min(1.5, Math.max(0.7, (Number(scale) || 100) / 100));
 function applySetting(key, value) {
   if (key === 'startWithWindows') setLoginItem(!!value);
   if (key === 'alwaysOnTop') win.setAlwaysOnTop(!!value, 'screen-saver'); // the highest level: above the taskbar and other pop-ups
-  if (key === 'uiScale') win.webContents.setZoomFactor(Math.min(1.5, Math.max(0.7, Number(value) / 100)));
+  if (key === 'uiScale') win.webContents.setZoomFactor(zoomFor(value));
   if (/^overlay|^owTag$/.test(key) && overlay) overlay.update();
   if (key === 'trackPlaytime') (value ? tracker.start() : tracker.stop());
 }
@@ -953,7 +984,7 @@ function registerIpc() {
     // At startup: show last time's library at once and let the real scan catch up in the background
     const cache = store.data.libCache;
     if (!rescan && !scanned && !items.length && Array.isArray(cache) && cache.length) {
-      items = [...cache, ...store.data.custom.map(customToItem)];
+      items = [...cache, ...store.data.custom.map((c) => customToItem(c, cache))];
       watched = watchList(items);
       applyArt();
       getLibrary(false).then(notify).catch(console.error);
@@ -996,7 +1027,6 @@ function registerIpc() {
   });
 
   // "Hide now" on the loading card: stop waiting for the game and fade away
-  ipcMain.handle('lock:release', () => showWindow()); // "Hold to unlock" on the lock screen
   ipcMain.handle('launch:skip', () => { if (launchWait) launchWait.finish('skip'); });
 
   // ----- Nexus as the Windows desktop -----
@@ -1039,6 +1069,12 @@ function registerIpc() {
     if (kind === 'unhideAll') { store.data.hidden = []; store.save(); }
     if (kind === 'noAdmin') { store.data.noAdmin = store.data.noAdmin || {}; if (value) store.data.noAdmin[id] = true; else delete store.data.noAdmin[id]; store.save(); }
     if (kind === 'tags') { store.data.tags = store.data.tags || {}; const t = cleanTags(value); if (t.length) store.data.tags[id] = t; else delete store.data.tags[id]; store.save(); }
+    if (kind === 'name') { // your own name for a game or app; empty brings the real one back
+      store.data.names = store.data.names || {};
+      const n = String(value || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+      if (n) store.data.names[id] = n; else delete store.data.names[id];
+      store.save();
+    }
     if (kind === 'remove') {
       store.data.custom = store.data.custom.filter((c) => c.id !== id);
       items = items.filter((i) => i.id !== id);
@@ -1062,8 +1098,9 @@ function registerIpc() {
   });
 
   ipcMain.handle('custom:add', async (_e, data) => {
-    const c = { id: `custom:${Date.now()}`, kind: data.kind, name: data.name.trim() };
-    if (data.kind === 'web') c.url = /^https?:\/\//i.test(data.url) ? data.url.trim() : `https://${data.url.trim()}`;
+    const c = { id: `custom:${Date.now()}`, kind: data.kind, name: String(data.name || '').trim() || 'Untitled' };
+    const url = String(data.url || '').trim();
+    if (data.kind === 'web') c.url = /^https?:\/\//i.test(url) ? url : `https://${url}`;
     else Object.assign(c, { path: data.path, category: data.category });
     store.data.custom.push(c);
     store.save();
@@ -1162,11 +1199,15 @@ function registerIpc() {
   });
 
   // ----- data tools -----
+  // What a backup holds (besides the settings), and so what restoring one brings back: everything that is yours, not caches
+  const BACKUP_LISTS = ['favorites', 'hidden', 'custom', 'sessions', 'matches', 'badgesSeen'];
+  const BACKUP_MAPS = ['recents', 'covers', 'playtime', 'gacha', 'tags', 'manualHours', 'noAdmin', 'overlayLayout', 'names', 'newsSeen'];
   ipcMain.handle('data:export', async () => {
     const res = await dialog.showSaveDialog(win, { title: 'Export Nexus data', defaultPath: 'nexus-backup.json', filters: [{ name: 'JSON', extensions: ['json'] }] });
     if (res.canceled) return false;
-    const { settings, favorites, hidden, custom, recents, covers, playtime, sessions, gacha, tags } = store.data;
-    fs.writeFileSync(res.filePath, JSON.stringify({ nexus: 1, settings, favorites, hidden, custom, recents, covers, playtime, sessions, gacha, tags }, null, 2));
+    const out = { nexus: 1, settings: store.data.settings };
+    for (const k of [...BACKUP_LISTS, ...BACKUP_MAPS]) if (store.data[k] !== undefined) out[k] = store.data[k];
+    fs.writeFileSync(res.filePath, JSON.stringify(out, null, 2));
     return true;
   });
 
@@ -1178,8 +1219,8 @@ function registerIpc() {
     if (!d || d.nexus !== 1) throw new Error('That is not a Nexus backup file.');
     const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
     if (isObj(d.settings)) for (const k of Object.keys(SETTING_DEFAULTS)) if (typeof d.settings[k] === typeof SETTING_DEFAULTS[k]) store.data.settings[k] = d.settings[k];
-    for (const k of ['favorites', 'hidden', 'custom', 'sessions']) if (Array.isArray(d[k])) store.data[k] = d[k];
-    for (const k of ['recents', 'covers', 'playtime', 'gacha']) if (isObj(d[k])) store.data[k] = d[k];
+    for (const k of BACKUP_LISTS) if (Array.isArray(d[k])) store.data[k] = d[k];
+    for (const k of BACKUP_MAPS) if (isObj(d[k])) store.data[k] = d[k];
     store.save();
     for (const k of ['startWithWindows', 'alwaysOnTop', 'uiScale', 'trackPlaytime']) applySetting(k, store.data.settings[k]);
     registerHotkey(store.data.settings.hotkey);
@@ -1280,7 +1321,9 @@ function registerIpc() {
       if (rel.installer.size && got !== rel.installer.size) throw new Error('The download is incomplete');
       if (rel.installer.sha256 && hash.digest('hex') !== rel.installer.sha256) throw new Error('The download does not match GitHub\u2019s checksum, so it was not run');
       send(100);
-      require('child_process').spawn(file, [], { detached: true, stdio: 'ignore' }).unref();
+      const setup = require('child_process').spawn(file, [], { detached: true, stdio: 'ignore' });
+      setup.on('error', () => {});
+      setup.unref();
       setTimeout(() => { app.isQuitting = true; app.quit(); }, 800);
       return { ok: true };
     } catch (e) {
@@ -1371,8 +1414,11 @@ function showNextToast() {
   const s = store.data.settings;
   const W = 380, H = 120, margin = 18;
   const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+  const corner = String(s.toastCorner || 'bottom-right'); // Settings → Playtime → "Popup corner"
+  const x = corner.endsWith('left') ? area.x + margin : area.x + area.width - W - margin;
+  const y = corner.startsWith('top') ? area.y + margin : area.y + area.height - H - margin;
   const t = new BrowserWindow({
-    width: W, height: H, x: area.x + area.width - W - margin, y: area.y + area.height - H - margin,
+    width: W, height: H, x, y,
     frame: false, transparent: true, backgroundColor: '#00000000', resizable: false, movable: false, focusable: false,
     skipTaskbar: true, alwaysOnTop: true, show: false, hasShadow: false, fullscreenable: false,
     webPreferences: { sandbox: true, contextIsolation: true, autoplayPolicy: 'no-user-gesture-required' },
@@ -1387,5 +1433,5 @@ function showNextToast() {
   t.loadFile(path.join(__dirname, 'renderer', 'toast.html'), { query });
   t.once('ready-to-show', () => { if (!t.isDestroyed()) t.showInactive(); });
   const next = () => { if (!t.isDestroyed()) t.destroy(); setTimeout(showNextToast, 500); };
-  setTimeout(next, 6800);
+  setTimeout(next, Math.min(20, Math.max(3, Number(s.toastSeconds) || 7)) * 1000 - 200);
 }

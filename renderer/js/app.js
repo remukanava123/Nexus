@@ -19,8 +19,10 @@ const iconCache = new Map();
 const content = $('#content');
 const search = $('#search');
 
-const byName = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
-const visible = () => items.filter((i) => !prefs.hidden.includes(i.id));
+// Your own name for an item (right-click → Rename), else its real one. The real name stays in it.name for covers, news and tips.
+const nameOf = (it) => (prefs.names && prefs.names[it.id]) || it.name;
+const byName = (a, b) => nameOf(a).localeCompare(nameOf(b), undefined, { sensitivity: 'base' });
+const visible = () => { const hidden = new Set(prefs.hidden); return items.filter((i) => !hidden.has(i.id)); };
 const ofType = (type) => visible().filter((i) => i.type === type).sort(byName);
 const isFav = (id) => prefs.favorites.includes(id);
 const recent = () => visible().filter((i) => prefs.recents[i.id]).sort((a, b) => prefs.recents[b.id] - prefs.recents[a.id]);
@@ -56,21 +58,29 @@ function sortGames(list) {
 
 // ---------- Building blocks ----------
 function letter(it, cls = 'letter') {
-  return `<span class="${cls}"${it.iconPath && !it.icon ? ` data-icon-path="${esc(it.iconPath)}"` : ''}>${esc(it.name.trim()[0] || '?').toUpperCase()}</span>`;
+  return `<span class="${cls}"${it.iconPath && !it.icon ? ` data-icon-path="${esc(it.iconPath)}"` : ''}>${esc(nameOf(it).trim()[0] || '?').toUpperCase()}</span>`;
 }
 function iconHtml(it) {
-  return it.icon ? `<img src="${esc(it.icon)}" alt="" data-fallback-letter="${esc(it.name[0] || '?')}">` : letter(it);
+  return it.icon ? `<img src="${esc(it.icon)}" alt="" data-fallback-letter="${esc(nameOf(it)[0] || '?')}">` : letter(it);
 }
 function placeholder(it) {
-  return `<div class="placeholder">${iconHtml(it)}<span>${esc(it.name)}</span></div>`;
+  return `<div class="placeholder">${iconHtml(it)}<span>${esc(nameOf(it))}</span></div>`;
+}
+
+// The line under a cover (Settings → Appearance → "Under each cover")
+function cardMetaHtml(it) {
+  const what = prefs.settings.cardMeta || 'hours';
+  if (what === 'hours') return totalSeconds(it.id) >= 60 ? `<div class="meta play">${esc(playedText(it.id, true))}</div>` : '';
+  if (what === 'lastPlayed') return prefs.recents[it.id] ? `<div class="meta">${esc(timeAgo(prefs.recents[it.id]))}</div>` : '<div class="meta">Never played</div>';
+  if (what === 'launcher') return `<div class="meta">${esc(SOURCES[it.source] || '')}</div>`;
+  return '';
 }
 
 function gameCard(it, meta = '') {
   const art = it.cover
     ? `<img class="art" src="${esc(it.cover)}" data-fallback="${esc(it.coverFallback || '')}" alt="" loading="lazy"><template>${placeholder(it)}</template>`
     : placeholder(it);
-  const sec = totalSeconds(it.id);
-  const line = meta ? `<div class="meta">${esc(meta)}</div>` : sec >= 60 ? `<div class="meta play">${fmtHours(sec)} played</div>` : '';
+  const line = meta ? `<div class="meta">${esc(meta)}</div>` : cardMetaHtml(it);
   return `
     <div class="game" data-id="${esc(it.id)}" tabindex="0" style="--src: var(--${it.source})">
       <div class="cover">
@@ -80,17 +90,17 @@ function gameCard(it, meta = '') {
         ${isRunning(it.id) ? '<span class="run-badge"><i class="live-dot"></i>PLAYING</span>' : ''}
         <div class="overlay"><div class="play" title="Play">${PLAY}</div></div>
       </div>
-      <div class="title">${esc(it.name)}</div>
+      <div class="title">${esc(nameOf(it))}</div>
       ${line}
     </div>`;
 }
 
 function tile(it) {
   return `
-    <div class="tile ${it.type}" data-id="${esc(it.id)}" tabindex="0" title="${esc(it.name)}">
+    <div class="tile ${it.type}" data-id="${esc(it.id)}" tabindex="0" title="${esc(nameOf(it))}">
       ${isFav(it.id) ? `<span class="fav-dot">${STAR}</span>` : ''}
       <div class="icon">${iconHtml(it)}</div>
-      <div class="name">${esc(it.name)}</div>
+      <div class="name">${esc(nameOf(it))}</div>
       ${it.type === 'web' ? `<div class="domain">${esc(domain(it.url))}</div>` : ''}
     </div>`;
 }
@@ -107,7 +117,7 @@ const tiles = (list, addKind) => `<div class="grid-tiles">${list.map(tile).join(
 function greetingHtml(allGames) {
   const h = new Date().getHours();
   const word = h < 5 ? 'Still up' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
-  const week = secondsSince(startOfDay(Date.now()) - 6 * DAY_MS);
+  const week = secondsSince(daysAgo(6));
   const bits = [`${allGames.length} games ready`];
   if (week >= 60) bits.push(`${fmtHours(week)} played this week`);
   const st = streaks(allSessions());
@@ -130,21 +140,21 @@ function renderHome() {
   if (live.length) {
     html += live.map((g) => `
       <div class="nowplaying" style="--src: var(--${g.source})">
-        <span class="live-dot"></span><div><b>Now playing: ${esc(g.name)}</b><small>${esc(SOURCES[g.source] || '')} · <span data-since="${runningMap()[g.id]}"></span></small></div>
+        <span class="live-dot"></span><div><b>Now playing: ${esc(nameOf(g))}</b><small>${esc(SOURCES[g.source] || '')} · <span data-since="${runningMap()[g.id]}"></span></small></div>
         <button class="btn" data-open="${esc(g.id)}">Open page</button>
       </div>`).join('');
   }
 
   if (s.homeHero && heroItem) {
-    const bg = heroItem.cover ? `style="background-image:url('${esc(heroItem.cover)}')"` : '';
+    const bg = heroItem.cover ? `style="background-image:${esc(cssUrl(heroItem.cover))}"` : '';
     const sec = totalSeconds(heroItem.id);
     html += `
       <div class="hero" style="--src: var(--${heroItem.source})">
         <div class="hero-bg" ${bg}></div>
         ${heroItem.cover ? `<div class="hero-art" ${bg}></div>` : ''}
         <div class="hero-info">
-          <div class="hero-label">${recGames[0] ? `Jump back in · ${timeAgo(prefs.recents[heroItem.id])}` : 'Ready to play'}${sec >= 60 ? ` · ${fmtHours(sec)} played` : ''}</div>
-          <h1>${esc(heroItem.name)}</h1>
+          <div class="hero-label">${recGames[0] ? `Jump back in · ${timeAgo(prefs.recents[heroItem.id])}` : 'Ready to play'}${sec >= 60 ? ` · ${playedText(heroItem.id, true)}` : ''}</div>
+          <h1>${esc(nameOf(heroItem))}</h1>
           <div class="hero-actions">
             <button class="play-btn" data-launch="${esc(heroItem.id)}">${PLAY} ${isRunning(heroItem.id) ? 'Open' : 'Play'}</button>
             <button class="btn glass" data-pick title="Spin the wheel (Ctrl+R)">🎲 Pick for me</button>
@@ -165,8 +175,8 @@ function renderHome() {
     html += `
       <div class="gotd" style="--src: var(--${pick.source})">
         <div class="gotd-art" data-open="${esc(pick.id)}">${pick.cover ? `<img src="${esc(pick.cover)}" alt="" data-hide-self>` : ''}</div>
-        <div class="gotd-main"><small>🎯 GAME OF THE DAY</small><b>${esc(pick.name)}</b>
-          <span>${SOURCES[pick.source] || ''} · ${sec >= 60 ? `${fmtHours(sec)} played` : 'never played'}</span></div>
+        <div class="gotd-main"><small>🎯 GAME OF THE DAY</small><b>${esc(nameOf(pick))}</b>
+          <span>${SOURCES[pick.source] || ''} · ${sec >= 60 ? playedText(pick.id, true) : 'never played'}</span></div>
         <button class="btn" data-open="${esc(pick.id)}">Details</button><button class="play-btn small" data-launch="${esc(pick.id)}">${PLAY} Play</button>
       </div>`;
   }
@@ -182,7 +192,7 @@ function renderHome() {
 
   if (s.homeMostPlayed) {
     const top = allGames.filter((g) => totalSeconds(g.id) >= 600).sort((a, b) => totalSeconds(b.id) - totalSeconds(a.id)).slice(0, rows);
-    if (top.length >= 2) html += section('Most played', games(top, 'row', (g) => `${fmtHours(totalSeconds(g.id))} played`), 'stats');
+    if (top.length >= 2) html += section('Most played', games(top, 'row', (g) => playedText(g.id, true)), 'stats');
   }
 
   if (s.homeBacklog) {
@@ -256,7 +266,7 @@ function renderFavorites() {
 }
 
 function score(it, q) {
-  const n = it.name.toLowerCase();
+  const n = nameOf(it).toLowerCase();
   let s = 0;
   if (n === q) s = 100;
   else if (n.startsWith(q)) s = 60;
@@ -284,8 +294,8 @@ function renderSearch() {
   const q = query.toLowerCase().trim();
   const scored = visible().map((it) => [it, score(it, q)]).filter(([, s]) => s > 0).sort((a, b) => b[1] - a[1]).map(([it]) => it);
   const g = scored.filter((i) => i.type === 'game');
-  const a = scored.filter((i) => i.type === 'app');
-  const w = scored.filter((i) => i.type === 'web');
+  const a = prefs.settings.searchApps === false ? [] : scored.filter((i) => i.type === 'app');
+  const w = prefs.settings.searchWeb === false ? [] : scored.filter((i) => i.type === 'web');
   results = [...g, ...a, ...w];
   selected = Math.min(selected, Math.max(results.length - 1, 0));
   if (!results.length) {
@@ -330,6 +340,12 @@ function updateNav() {
   $('[data-view="overwatch"]').hidden = !owShow;
   if (!owShow && view === 'overwatch') view = 'home';
   $('#desktopBtn').hidden = !prefs.shell; // only when Nexus is standing in for the Windows desktop
+  // Sidebar entries you switched off (Settings → Sidebar)
+  for (const [v, key] of [['apps', 'navApps'], ['web', 'navWeb'], ['favorites', 'navFavorites'], ['stats', 'navStats'], ['barca', 'navBarca'], ['news', 'navNews']]) {
+    const off = prefs.settings[key] === false;
+    $(`.sidebar [data-view="${v}"]`).hidden = off;
+    if (off && view === v) view = 'home';
+  }
   if (!show && view === 'gacha') view = 'home';
   $('#hotkeyHint').textContent = prettyAccel(prefs.settings.hotkey || '');
   updateNowStatus();
@@ -351,7 +367,7 @@ function updatePageBg() {
   const bg = $('#pageBg');
   if (!bg) return;
   const hero = recent().find((i) => i.type === 'game' && i.cover) || ofType('game').find((g) => g.cover);
-  bg.style.backgroundImage = prefs.settings.bgStyle === 'art' && hero ? `url('${hero.cover}')` : 'none';
+  bg.style.backgroundImage = prefs.settings.bgStyle === 'art' && hero ? cssUrl(hero.cover) : 'none';
 }
 
 // Cover art can arrive (from the web) while a game's page is already open
@@ -361,14 +377,14 @@ function syncDetailCover() {
   const holder = $('.detail-cover', detail);
   if (!it || !it.cover || !holder || holder.querySelector('img.art')) return;
   holder.innerHTML = `<img class="art" src="${esc(it.cover)}" data-fallback="${esc(it.coverFallback || '')}" alt=""><template>${placeholder(it)}</template>`;
-  $('.detail-hero .bg', detail).style.backgroundImage = `url('${it.cover}')`;
+  $('.detail-hero .bg', detail).style.backgroundImage = cssUrl(it.cover);
 }
 
 // Fade the page's blocks in one after another (only when you switch pages, not on every refresh)
 let enterTimer;
 function playEnter() {
   if (document.body.classList.contains('no-anim')) return;
-  const sel = '.hero,.greeting,.gotd,.nowplaying,.section-head,.game,.tile,.stat-card,.panel,.g-card,.g-chip,.badge-card,.set-section,.facts-strip,.page-title,.page-sub,.chips';
+  const sel = '.hero,.greeting,.gotd,.nowplaying,.section-head,.game,.tile,.stat-card,.panel,.g-card,.g-chip,.set-section,.facts-strip,.page-title,.page-sub,.chips';
   $$(sel, content).forEach((el, i) => el.style.setProperty('--i', Math.min(i, 20)));
   content.classList.remove('anim-in');
   void content.offsetWidth;
@@ -479,12 +495,13 @@ function leaveFx(it) {
   if (!el) { el = document.createElement('div'); el.id = 'leave'; el.className = 'leave'; document.body.appendChild(el); }
   const isGame = it.type === 'game';
   el.innerHTML = `<div class="leave-bg"></div><div class="leave-box">
-    <div class="leave-card">${it.cover ? `<img src="${esc(it.cover)}" alt="">` : ''}<div class="leave-text">Launching<b>${esc(it.name)}</b><span class="leave-status"></span><span class="leave-hint"></span></div></div>
-    ${isGame ? `<div class="leave-tip"><span class="tip-tag"></span><p class="tip-text"></p></div>
+    <div class="leave-card">${it.cover ? `<img src="${esc(it.cover)}" alt="">` : ''}<div class="leave-text">Launching<b>${esc(nameOf(it))}</b><span class="leave-status"></span><span class="leave-hint"></span></div></div>
+    ${isGame && prefs.settings.coverTips !== false ? `<div class="leave-tip"><span class="tip-tag"></span><p class="tip-text"></p></div>` : ''}
+    ${isGame ? `
       <div class="leave-bar"><i></i></div>
       <button class="leave-skip" type="button">Hide Nexus now</button>` : ''}
   </div>`;
-  if (it.cover) $('.leave-bg', el).style.backgroundImage = `url("${String(it.cover).replace(/"/g, '%22')}")`;
+  if (it.cover && prefs.settings.coverArt !== false) $('.leave-bg', el).style.backgroundImage = cssUrl(it.cover);
   clearTimeout(leaveTimer); clearInterval(tipTimer); clearInterval(statusTimer);
   updateInfo = null;
   document.body.classList.add('leaving');
@@ -498,6 +515,7 @@ function leaveFx(it) {
   let n = 0;
   const box = $('.leave-tip', el);
   const showTip = () => {
+    if (!box) return; // tips are turned off
     const t = tips[n++ % tips.length];
     markTipSeen(t);
     box.classList.remove('in');
@@ -522,39 +540,28 @@ window.api.on('launch:done', (p) => {
   clearTimeout(leaveTimer);
   leaveTimer = setTimeout(leaveReset, p && p.behind ? 1200 : 4500); // staying behind the game: show the normal screen again after a moment
 });
-// While the cover is up or Nexus is locked behind a game, keys do nothing in Nexus (Esc still skips the cover).
+// While the cover is up, keys do nothing in Nexus (Esc still skips the cover). The welcome guide and What's new card
+// keep keys to themselves too, so typing or Enter can't reach the page (or launch a game in big screen) behind them.
 // Capture phase on window, so this runs before every other key handler.
 window.addEventListener('keydown', (e) => {
-  const leaving = document.body.classList.contains('leaving');
-  if (!leaving && !document.body.classList.contains('locked')) return;
-  e.preventDefault(); e.stopImmediatePropagation();
-  if (e.key === 'Escape' && leaving) window.api.skipLaunchWait();
+  if (document.body.classList.contains('leaving')) {
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (e.key === 'Escape') window.api.skipLaunchWait();
+    return;
+  }
+  const onboard = $('#onboard');
+  if (onboard && !onboard.hidden && !onboard.contains(e.target)) {
+    e.stopImmediatePropagation();
+    if (e.key !== 'Tab') e.preventDefault();
+    const first = onboard.querySelector('button, input, select, [tabindex]');
+    if (first) first.focus(); // and move into the card, so the next key works there
+  }
 }, true);
-
-// Locked behind a running game: a screen over everything that swallows clicks, scrolling and selection.
-// Unlock by holding the button for a second (a stray click can't do it) or with the hotkey.
-window.api.on('lock', (p) => {
-  let el = $('#lock');
-  if (!p) { document.body.classList.remove('locked'); if (el) el.remove(); return; }
-  if (!el) { el = document.createElement('div'); el.id = 'lock'; el.className = 'lock'; document.body.appendChild(el); }
-  const key = String((prefs && prefs.settings && prefs.settings.hotkey) || 'Control+Alt+Space').replace('Control', 'Ctrl').replace(/\+/g, ' + ');
-  el.innerHTML = `<div class="lock-box"><div class="lock-icon">🔒</div><b>${esc(p.name)} is running</b>
-    <p>Nexus is waiting behind the game and is locked, so a stray click does nothing.</p>
-    <button class="lock-hold" type="button"><i></i><span>Hold to unlock</span></button><small>or press ${esc(key)}</small></div>`;
-  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
-  getSelection().removeAllRanges();
-  document.body.classList.add('locked');
-  const btn = $('.lock-hold', el);
-  let t = null;
-  const cancel = () => { clearTimeout(t); btn.classList.remove('holding'); };
-  btn.addEventListener('pointerdown', () => { btn.classList.add('holding'); t = setTimeout(() => { cancel(); window.api.unlock(); }, 1000); });
-  ['pointerup', 'pointerleave', 'pointercancel'].forEach((n) => btn.addEventListener(n, cancel));
-});
 
 async function launch(id) {
   const it = items.find((i) => i.id === id);
   if (!it) return;
-  toast(`${it.type === 'web' ? 'Opening' : 'Launching'} ${it.name}…`);
+  toast(`${it.type === 'web' ? 'Opening' : 'Launching'} ${nameOf(it)}…`);
   try {
     prefs = await window.api.launch(id);
     sfx.play('launch');
@@ -562,7 +569,7 @@ async function launch(id) {
     if ((it.type === 'game' || prefs.settings.hideOnLaunch) && !document.body.classList.contains('no-anim')) leaveFx(it); // games always get the cover
     if (!query && !big.on) render();
   } catch (err) {
-    toast(`Couldn't open ${it.name}: ${String(err.message || err).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')}`, true);
+    toast(`Couldn't open ${nameOf(it)}: ${String(err.message || err).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')}`, true);
   }
 }
 
@@ -598,7 +605,7 @@ function openDetail(id) {
   detailId = id;
   closeMenu();
   sfx.play('open');
-  const bg = it.cover ? `style="background-image:url('${esc(it.cover)}')"` : '';
+  const bg = it.cover ? `style="background-image:${esc(cssUrl(it.cover))}"` : '';
   const cover = it.cover
     ? `<img class="art" src="${esc(it.cover)}" data-fallback="${esc(it.coverFallback || '')}" alt=""><template>${placeholder(it)}</template>`
     : placeholder(it);
@@ -609,7 +616,7 @@ function openDetail(id) {
       <div class="detail-cover">${cover}</div>
       <div class="detail-main">
         <span class="pill">${SOURCES[it.source] || ''}</span>
-        <h1>${esc(it.name)}</h1>
+        <h1>${esc(nameOf(it))}</h1>
         <div class="detail-sub">${playLine(it)}</div>
         <div class="detail-stats">${gameStatsHtml(it)}</div>
         ${it.type === 'game' ? `<div class="detail-hours" id="detailHours">${hoursLineHtml(it)}</div>` : ''}
@@ -721,6 +728,8 @@ function openMenu(x, y, it) {
     it.alt && [it.alt.label, () => window.api.action(it.id, 'alt')],
     '-',
     [isFav(it.id) ? 'Remove from favourites' : 'Add to favourites', async () => apply(await window.api.setPref('favorite', it.id, !isFav(it.id)))],
+    ['Rename…', () => openRename(it)],
+    prefs.names && prefs.names[it.id] && ['Use the original name', async () => apply(await window.api.setPref('name', it.id, ''))],
     it.type === 'game' && ['Change cover image…', async () => apply(await window.api.setPref('cover', it.id))],
     it.type === 'game' && prefs.customCovers.includes(it.id) && ['Reset cover image', async () => apply(await window.api.setPref('resetCover', it.id))],
     it.location && ['Open file location', () => window.api.action(it.id, 'reveal')],
@@ -741,6 +750,28 @@ function openMenu(x, y, it) {
   menu.style.top = `${Math.min(y, innerHeight - r.height - 8)}px`;
 }
 const closeMenu = () => { menu.hidden = true; };
+
+// ---------- Rename dialog ----------
+function openRename(it) {
+  modalBody.innerHTML = `
+    <h3>Rename</h3>
+    <form id="renameForm">
+      <div class="field"><label>Name shown in Nexus</label><input name="name" value="${esc(nameOf(it))}" placeholder="${esc(it.name)}" maxlength="80"></div>
+      <p class="muted-line">The real name (${esc(it.name)}) is still used to find covers, news and tips. Leave it empty to go back to it.</p>
+      <div class="actions"><button type="button" class="btn" id="cancel">Cancel</button><button class="btn primary">Save</button></div>
+    </form>`;
+  const form = $('#renameForm');
+  $('#cancel').onclick = closeModal;
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const name = form.name.value.trim();
+    apply(await window.api.setPref('name', it.id, name === it.name ? '' : name));
+    closeModal();
+  };
+  unfade(modal);
+  form.name.focus();
+  form.name.select();
+}
 
 // ---------- Add dialog ----------
 const modal = $('#modal');
@@ -844,7 +875,13 @@ document.addEventListener('mousedown', (e) => { if (!menu.contains(e.target)) cl
 window.addEventListener('blur', closeMenu);
 content.addEventListener('scroll', closeMenu);
 
-search.addEventListener('input', () => { query = search.value; selected = 0; render(); });
+// Results follow the typing, but not on every single key: a fast typist would redraw the whole page each time
+let searchTimer;
+search.addEventListener('input', () => {
+  query = search.value; selected = 0;
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(render, query ? 60 : 0);
+});
 
 const TYPING = new Set(['INPUT', 'SELECT', 'TEXTAREA']);
 
@@ -894,7 +931,7 @@ async function checkBadgeUnlocks() {
   badgeBusy = true;
   try {
     await loadAchSummary();
-    const data = statsData();
+    const data = statsData(true);
     if (!data.totalSec && !data.sessions.length) return;
     const unlocked = evaluateBadges(data).filter((b) => b.got);
     const seen = prefs.badgesSeen;
@@ -911,14 +948,26 @@ async function checkBadgeUnlocks() {
 setInterval(() => { if (Object.keys(runningMap()).length) checkBadgeUnlocks(); }, 30000);
 
 let stateTimer;
-window.api.on('library:updated', () => refresh());
+// A game starting or stopping redraws the page. Not while you are typing in a box on it (a gacha number, a match note):
+// that would wipe what you typed, so the redraw waits until you leave the box.
+let renderWaiting = false;
+function renderUnlessTyping() {
+  const el = document.activeElement;
+  if (el && content.contains(el) && TYPING.has(el.tagName)) {
+    if (!renderWaiting) { renderWaiting = true; el.addEventListener('blur', () => { renderWaiting = false; setTimeout(render, 0); }, { once: true }); }
+    return;
+  }
+  render();
+}
+window.api.on('library:updated', () => { if (renderWaiting) refreshQuietly(); else refresh(); });
+async function refreshQuietly() { const lib = await window.api.getLibrary(false); if (lib) { items = lib.items; prefs = lib.prefs; } }
 window.api.on('state:update', (p) => {
   prefs = p;
   updateNowStatus();
   checkBadgeUnlocks();
   clearTimeout(stateTimer);
   stateTimer = setTimeout(() => {
-    if (!(view === 'settings' && !query)) render();
+    if (!(view === 'settings' && !query)) renderUnlessTyping();
     if (big.on) bigRender(false);
     if (detailId) { const sub = $('.detail-sub', detail); const ds = $('.detail-stats', detail); const it = items.find((i) => i.id === detailId); if (sub && it) sub.innerHTML = playLine(it); if (ds && it) ds.innerHTML = gameStatsHtml(it); }
   }, 150);

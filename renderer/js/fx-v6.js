@@ -1,6 +1,6 @@
 // Pointer effects for the v6 look: card spotlight and tilt, button ripples. Cheap: one delegated listener each.
 (function () {
-  const CARD = '.game, .tile, .stat-card, .g-card, .badge-card';
+  const CARD = '.game, .tile, .stat-card, .g-card';
   let raf = 0, last = null;
   document.addEventListener('pointermove', (e) => {
     if (document.body.classList.contains('no-anim')) return;

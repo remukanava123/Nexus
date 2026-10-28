@@ -3,7 +3,7 @@
 const { spawn } = require('child_process');
 const path = require('path');
 
-const POWERSHELL = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+const { POWERSHELL } = require('./ps');
 
 const SCRIPT = `
 $ErrorActionPreference = 'SilentlyContinue'
@@ -65,8 +65,9 @@ function start(onUpdate) {
   const enc = Buffer.from(SCRIPT, 'utf16le').toString('base64');
   const child = spawn(POWERSHELL, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', enc], { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
   let buf = '';
+  child.stdout.setEncoding('utf8'); // decoded as one stream, so a character split between two chunks isn't garbled
   child.stdout.on('data', (d) => {
-    buf += d.toString('utf8');
+    buf += d;
     let i;
     while ((i = buf.indexOf('\n')) >= 0) {
       const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);

@@ -235,7 +235,7 @@ function advContext(d) {
 
   // Games first opened inside one week (ones you clearly played before Nexus don't count as new)
   const firsts = Object.entries(byGame)
-    .filter(([id]) => totalSeconds(id) - playSeconds(id) < 3600)
+    .filter(([id]) => realSeconds(id) - playSeconds(id) < 3600)
     .map(([, list]) => list[0].s).sort((a, b) => a - b);
   c.newGameWeek = firsts.reduce((best, t, i) => Math.max(best, firsts.filter((u, j) => j >= i && u < t + 7 * DAY_MS).length), 0);
 
@@ -332,7 +332,7 @@ document.getElementById('content').addEventListener('click', (e) => {
   const chip = e.target.closest('[data-adv-cat]');
   if (!chip || view !== 'stats') return;
   advFilter = chip.dataset.advCat;
-  const list = evaluateBadges(statsData());
+  const list = evaluateBadges(statsData(true));
   $('#advGrid').innerHTML = advGridHtml(list);
   $$('.adv-chips .chip').forEach((c) => c.classList.toggle('active', c.dataset.advCat === advFilter));
 });

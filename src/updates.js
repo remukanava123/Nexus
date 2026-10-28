@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 
-const POWERSHELL = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+const { POWERSHELL } = require('./ps');
 
 // ---------- Steam ----------
 function acfValue(text, key) {
@@ -62,6 +62,7 @@ class NetMonitor {
     }
     this.child = spawn(POWERSHELL, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(NET_SCRIPT, 'utf16le').toString('base64')], { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
     let buf = '';
+    this.child.stdout.setEncoding('utf8');
     this.child.stdout.on('data', (d) => {
       buf += d;
       let i;

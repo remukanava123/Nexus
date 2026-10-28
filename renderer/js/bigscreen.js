@@ -102,14 +102,14 @@ function bigSelect(i, animate = true) {
   const layers = [$('#bigBg'), $('#bigBg2')];
   if (layers[0] && layers[1]) {
     const next = layers.find((l) => !l.classList.contains('show')) || layers[0];
-    next.style.backgroundImage = g.cover ? `url('${g.cover}')` : 'none';
+    next.style.backgroundImage = g.cover ? cssUrl(g.cover) : 'none';
     next.classList.add('show');
     layers.filter((l) => l !== next).forEach((l) => l.classList.remove('show'));
   }
-  const sec = playSeconds(g.id);
+  const sec = totalSeconds(g.id);
   $('#bigInfo').innerHTML = `
-    <div class="big-title">${esc(g.name)}</div>
-    <div class="big-meta">${esc(SOURCES[g.source] || '')}${sec >= 60 ? ` · ${fmtHours(sec)} played` : ' · never played'}${prefs.recents[g.id] ? ` · last played ${timeAgo(prefs.recents[g.id])}` : ''}${isRunning(g.id) ? ` · <span class="live-dot"></span> playing now <span data-since="${runningMap()[g.id]}"></span>` : ''}</div>
+    <div class="big-title">${esc(nameOf(g))}</div>
+    <div class="big-meta">${esc(SOURCES[g.source] || '')}${sec >= 60 ? ` · ${esc(playedText(g.id, true))}` : ' · never played'}${prefs.recents[g.id] ? ` · last played ${timeAgo(prefs.recents[g.id])}` : ''}${isRunning(g.id) ? ` · <span class="live-dot"></span> playing now <span data-since="${runningMap()[g.id]}"></span>` : ''}</div>
     <div class="big-play">${PLAY} ${isRunning(g.id) ? 'Open' : 'Play'}</div>`;
 }
 
@@ -199,7 +199,7 @@ function initBigScreen() {
       s.up ||= btn(12) || ax(1) < -0.6; s.down ||= btn(13) || ax(1) > 0.6;
       s.left ||= btn(14) || ax(0) < -0.6; s.right ||= btn(15) || ax(0) > 0.6;
     }
-    const blocked = !document.hasFocus() || document.hidden || document.body.classList.contains('locked') || document.body.classList.contains('leaving'); // a game is starting or running: the controller is the game's
+    const blocked = !document.hasFocus() || document.hidden || document.body.classList.contains('leaving') || !$('#onboard').hidden; // a game is starting or running: the controller is the game's (or a welcome card is open)
     for (const name of Object.keys(act)) {
       if (!s[name] || blocked) { pad.down[name] = !!s[name]; continue; }
       if (!pad.down[name]) { pad.down[name] = true; pad.repeatAt[name] = now + 380; act[name](); }

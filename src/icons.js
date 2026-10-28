@@ -5,8 +5,7 @@ const os = require('os');
 const crypto = require('crypto');
 const { execFile } = require('child_process');
 
-const SYS32 = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32');
-const POWERSHELL = path.join(SYS32, 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+const { POWERSHELL } = require('./ps');
 const SCRIPT = path.join(__dirname, 'extract-icons.ps1').replace('app.asar', 'app.asar.unpacked');
 
 const expandEnv = (p) => String(p || '').replace(/%([^%]+)%/g, (m, v) => process.env[v] || m);

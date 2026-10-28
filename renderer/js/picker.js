@@ -93,12 +93,12 @@ function reveal() {
   $$('.slot-card.win', strip).forEach((c) => c.classList.remove('win'));
   const card = $$('.slot-card', strip)[36];
   if (card) card.classList.add('win');
-  const sec = playSeconds(g.id);
+  const sec = totalSeconds(g.id);
   $('#pickResult').innerHTML = `
-    <div class="pick-name">${esc(g.name)}</div>
-    <div class="pick-meta">${SOURCES[g.source] || ''} · ${sec >= 60 ? `${fmtHours(sec)} played` : 'never played'}${prefs.recents[g.id] ? ` · last ${timeAgo(prefs.recents[g.id])}` : ''}</div>
+    <div class="pick-name">${esc(nameOf(g))}</div>
+    <div class="pick-meta">${SOURCES[g.source] || ''} · ${sec >= 60 ? esc(playedText(g.id, true)) : 'never played'}${prefs.recents[g.id] ? ` · last ${timeAgo(prefs.recents[g.id])}` : ''}</div>
     <div class="pick-actions">
-      <button class="play-btn" data-pk="play">${PLAY} Play ${esc(g.name.length > 24 ? 'it' : g.name)}</button>
+      <button class="play-btn" data-pk="play">${PLAY} Play ${esc(nameOf(g).length > 24 ? 'it' : nameOf(g))}</button>
       <button class="btn" data-pk="again">🎲 Spin again</button>
       <button class="btn" data-pk="skip" title="Take it out of the pool and spin again">Not this one</button>
       <button class="btn" data-pk="details">Details</button>

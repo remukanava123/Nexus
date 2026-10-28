@@ -110,7 +110,7 @@ function renderOverwatch() {
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const byDay = dayNames.map((label, i) => { const g = decided.filter((m) => new Date(m.t).getDay() === i); const w = g.filter((m) => m.r === 'w').length; return { label, v: owPct(w, g.length) || 0, cls: owCls(owPct(w, g.length)), tip: `${g.length} games` }; });
   const perDay = [];
-  for (let i = 13; i >= 0; i--) { const s = new Date(); s.setHours(0, 0, 0, 0); s.setTime(s.getTime() - i * OW_DAY); const g = owMatches.filter((m) => /overwatch/i.test(m.game || 'overwatch') && m.t >= s.getTime() && m.t < s.getTime() + OW_DAY); perDay.push({ label: String(s.getDate()), v: g.length, tip: `${g.length} games` }); }
+  for (let i = 13; i >= 0; i--) { const s = new Date(daysAgo(i)), end = daysAgo(i - 1); const g = owMatches.filter((m) => /overwatch/i.test(m.game || 'overwatch') && m.t >= s.getTime() && m.t < end); perDay.push({ label: String(s.getDate()), v: g.length, tip: `${g.length} games` }); }
 
   // momentum: how you do right after a win or a loss, and late in a session
   let afterW = [0, 0], afterL = [0, 0];

@@ -9,7 +9,7 @@ const path = require('path');
 const SYS = process.env.SystemRoot || 'C:\\Windows';
 const REG = path.join(SYS, 'System32', 'reg.exe');
 const WSCRIPT = path.join(SYS, 'System32', 'wscript.exe');
-const POWERSHELL = path.join(SYS, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+const { POWERSHELL } = require('./ps');
 const SHELL_KEY = 'HKCU\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon';
 
 const vbs = (s) => String(s).replace(/"/g, '""');
@@ -90,7 +90,8 @@ function enable({ userData, exe, procNames, key = SHELL_KEY }) {
   if (current && !ours) throw new Error(`Windows is already set up with a custom desktop (${current}). Nexus won't overwrite it.`);
   const shellValue = `"${WSCRIPT}" //B //Nologo "${script}"`;
   fs.mkdirSync(userData, { recursive: true });
-  fs.writeFileSync(script, buildLauncherScript({ exe, procNames, selfPath: script, regKey: key, shellValue }), 'utf8');
+  // Windows Script Host reads ANSI or UTF-16 with a byte-order mark, not UTF-8: as UTF-8 a path with ä or ö would be garbled
+  fs.writeFileSync(script, `\uFEFF${buildLauncherScript({ exe, procNames, selfPath: script, regKey: key, shellValue })}`, 'utf16le');
   if (!writeShellValue(shellValue, key)) { try { fs.unlinkSync(script); } catch {} throw new Error('Windows would not let Nexus change the setting.'); }
   return shellValue;
 }
@@ -162,6 +163,7 @@ function runStartupApps(skip = ['nexus'], dry = false) {
     windowsHide: true, stdio: ['ignore', dry ? 'pipe' : 'ignore', 'ignore'],
     env: { ...process.env, NX_SKIP: skip.join('|'), NX_DRY: dry ? '1' : '0' },
   });
+  child.on('error', () => {});
   if (!dry) { child.unref(); return null; }
   return new Promise((resolve) => { let out = ''; child.stdout.on('data', (d) => (out += d)); child.on('exit', () => resolve(out)); });
 }
@@ -172,7 +174,9 @@ function startDesktop({ userData, key = SHELL_KEY }) {
   const script = path.join(userData, 'shell.vbs');
   const ours = current && current.toLowerCase().includes('shell.vbs');
   if (ours) deleteShellValue(key); // so Explorer starts as the real desktop; put back below, unless it was turned off meanwhile
-  spawn('explorer.exe', [], { detached: true, stdio: 'ignore' }).unref();
+  const ex = spawn('explorer.exe', [], { detached: true, stdio: 'ignore' });
+  ex.on('error', () => {});
+  ex.unref();
   if (ours) setTimeout(() => { if (fs.existsSync(script) && readShellValue(key) === null) writeShellValue(current, key); }, 15000);
 }
 

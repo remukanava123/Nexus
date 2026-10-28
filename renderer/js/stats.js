@@ -21,14 +21,16 @@ const secondsSince = (t0) => allSessions().filter((x) => x.s >= t0).reduce((n, x
 const dayKey = (ts) => { const d = new Date(ts); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
 const startOfDay = (ts) => { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); };
 const DAY_MS = 86400000;
+// Local midnight n days before today. Days are stepped on the calendar, not by 24 hours: around the clock change a day
+// is 23 or 25 hours long, and subtracting 24 hours would skip a day or start it at 01:00.
+const daysAgo = (n, from = Date.now()) => { const d = new Date(from); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - n); return d.getTime(); };
 
 // Consecutive days with at least one session, ending today (or yesterday if you haven't played yet today)
 function streaks(sessions) {
   const days = new Set(sessions.map((x) => dayKey(x.s)));
   let current = 0;
-  let cursor = startOfDay(Date.now());
-  if (!days.has(dayKey(cursor))) cursor -= DAY_MS;
-  while (days.has(dayKey(cursor))) { current += 1; cursor -= DAY_MS; }
+  let back = days.has(dayKey(Date.now())) ? 0 : 1;
+  while (days.has(dayKey(daysAgo(back)))) { current += 1; back += 1; }
   let best = 0, run = 0, prev = null;
   for (const k of [...days].sort()) {
     const t = new Date(`${k}T12:00:00`).getTime();
@@ -40,12 +42,14 @@ function streaks(sessions) {
 }
 
 // Everything the Stats page and the advancements are worked out from
-function statsData() {
+// forBadges: count real totals whatever "Hours to show" says, so advancements don't come and go with that setting
+function statsData(forBadges = false) {
+  const secOf = forBadges ? realSeconds : totalSeconds;
   const games = items.filter((i) => i.type === 'game');
   const byId = Object.fromEntries(games.map((g) => [g.id, g]));
   const sessions = allSessions().filter((x) => byId[x.id]);
   // Total hours per game: what Steam / the Overwatch profile / you say, never less than what Nexus counted itself
-  const perGame = games.map((g) => ({ g, sec: totalSeconds(g.id), nexus: playSeconds(g.id) })).filter((x) => x.sec > 0).sort((a, b) => b.sec - a.sec);
+  const perGame = games.map((g) => ({ g, sec: secOf(g.id), nexus: playSeconds(g.id) })).filter((x) => x.sec > 0).sort((a, b) => b.sec - a.sec);
   const totalSec = perGame.reduce((n, x) => n + x.sec, 0);
   const nexusSec = perGame.reduce((n, x) => n + x.nexus, 0);
   const st = streaks(sessions);
@@ -104,8 +108,8 @@ function renderStats() {
   }
 
   // Last 14 days
-  const days = Array.from({ length: 14 }, (_, i) => { const t0 = today0 - (13 - i) * DAY_MS; return { t0, sec: 0 }; });
-  for (const x of sessions) { const d = days.find((d) => x.s >= d.t0 && x.s < d.t0 + DAY_MS); if (d) d.sec += (x.e - x.s) / 1000; }
+  const days = Array.from({ length: 14 }, (_, i) => ({ t0: daysAgo(13 - i), t1: daysAgo(12 - i), sec: 0 }));
+  for (const x of sessions) { const d = days.find((d) => x.s >= d.t0 && x.s < d.t1); if (d) d.sec += (x.e - x.s) / 1000; }
   const maxDay = Math.max(...days.map((d) => d.sec), 1);
   const bars = days.map((d) => {
     const date = new Date(d.t0);
@@ -133,7 +137,7 @@ function renderStats() {
   const topRows = top.map(({ g, sec }) => `
     <div class="toprow" data-open="${esc(g.id)}" title="Open ${esc(g.name)}">
       <div class="toprow-art">${g.cover ? `<img src="${esc(g.cover)}" alt="" loading="lazy" data-hide-self>` : ''}</div>
-      <div class="toprow-main"><div class="toprow-name">${esc(g.name)}${isRunning(g.id) ? ' <span class="live-dot" title="Playing now"></span>' : ''}</div>
+      <div class="toprow-main"><div class="toprow-name">${esc(nameOf(g))}${isRunning(g.id) ? ' <span class="live-dot" title="Playing now"></span>' : ''}</div>
         <div class="toprow-bar"><span style="width:${(sec / top[0].sec) * 100}%"></span></div></div>
       <div class="toprow-val">${fmtHours(sec)}</div>
     </div>`).join('');
@@ -150,12 +154,12 @@ function renderStats() {
   const longest = sessions.reduce((best, x) => (!best || x.e - x.s > best.e - best.s ? x : best), null);
   const activeDays = Object.keys(daySec).length;
   const busiest = Object.entries(daySec).sort((a, b) => b[1] - a[1])[0];
-  const thisWeek = sumSince(today0 - 6 * DAY_MS);
-  const lastWeek = sessions.filter((x) => x.s >= today0 - 13 * DAY_MS && x.s < today0 - 6 * DAY_MS).reduce((n, x) => n + (x.e - x.s) / 1000, 0);
+  const thisWeek = sumSince(daysAgo(6));
+  const lastWeek = sessions.filter((x) => x.s >= daysAgo(13) && x.s < daysAgo(6)).reduce((n, x) => n + (x.e - x.s) / 1000, 0);
   const weekDelta = !lastWeek ? '' : thisWeek >= lastWeek ? `▲ ${Math.round(((thisWeek - lastWeek) / lastWeek) * 100)}% vs last week` : `▼ ${Math.round(((lastWeek - thisWeek) / lastWeek) * 100)}% vs last week`;
   const dowSec = Array(7).fill(0);
   for (const [k, sec] of Object.entries(daySec)) dowSec[new Date(`${k}T12:00:00`).getDay()] += sec;
-  const dowOrder = [1, 2, 3, 4, 5, 6, 0]; // Monday first
+  const dowOrder = prefs.settings.weekStart === 'sunday' ? [0, 1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5, 6, 0]; // Settings → Playtime → Week starts on
   const dowNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const maxDow = Math.max(...dowSec, 1);
   const dowBars = dowOrder.map((d) => `<div class="bar-col" title="${dowNames[d]}: ${fmtDur(dowSec[d])}"><div class="bar-val">${dowSec[d] ? fmtHours(dowSec[d]) : ''}</div><div class="bar" style="height:${Math.max(dowSec[d] ? 6 : 2, (dowSec[d] / maxDow) * 100)}%"></div><div class="bar-label">${dowNames[d].slice(0, 3)}</div></div>`).join('');
@@ -170,7 +174,7 @@ function renderStats() {
     const lng = gs.reduce((m, x) => Math.max(m, x.e - x.s), 0) / 1000;
     const avg = gs.length ? gs.reduce((n, x) => n + (x.e - x.s) / 1000, 0) / gs.length : 0;
     return `<tr data-open="${esc(g.id)}" title="Open ${esc(g.name)}">
-      <td class="g-name">${esc(g.name)}${isRunning(g.id) ? ' <span class="live-dot" title="Playing now"></span>' : ''}</td>
+      <td class="g-name">${esc(nameOf(g))}${isRunning(g.id) ? ' <span class="live-dot" title="Playing now"></span>' : ''}</td>
       <td>${fmtHours(sec)}${sec - nexus >= 3600 && nexus >= 60 ? ` <small class="muted" title="Counted by Nexus">(${fmtHours(nexus)} Nexus)</small>` : ''}</td><td>${gs.length || '–'}</td><td>${avg ? fmtDur(avg) : '–'}</td><td>${lng ? fmtDur(lng) : '–'}</td>
       <td>${first ? shortDate(first) : '–'}</td><td>${last ? timeAgo(last) : '–'}</td><td>${Math.round((sec / totalSec) * 100)}%</td></tr>`;
   }).join('');
@@ -190,7 +194,7 @@ function renderStats() {
     <div class="stat-grid">
       <div class="stat-card"><div class="stat-num">${fmtHours(totalSec)}</div><div class="stat-label">Total playtime${totalSec - nexusSec >= 3600 ? ` · ${fmtHours(nexusSec)} in Nexus` : ''}</div></div>
       <div class="stat-card"><div class="stat-num">${fmtDur(sumSince(today0))}</div><div class="stat-label">Today</div></div>
-      <div class="stat-card"><div class="stat-num">${fmtHours(sumSince(today0 - 6 * DAY_MS))}</div><div class="stat-label">Last 7 days${weekDelta ? ` · ${weekDelta}` : ''}</div></div>
+      <div class="stat-card"><div class="stat-num">${fmtHours(sumSince(daysAgo(6)))}</div><div class="stat-label">Last 7 days${weekDelta ? ` · ${weekDelta}` : ''}</div></div>
       <div class="stat-card"><div class="stat-num">${st.current}<small> day${st.current === 1 ? '' : 's'}</small></div><div class="stat-label">Current streak · best ${st.best}</div></div>
       <div class="stat-card"><div class="stat-num name">${mostActive ? esc(mostActive.g.name) : '–'}</div><div class="stat-label">Most played</div></div>
     </div>
@@ -229,7 +233,7 @@ function renderStats() {
     <div class="section"><div class="section-head"><h2>Your games in numbers</h2></div>
       <div class="panel gtable-wrap"><table class="gtable"><thead><tr><th>Game</th><th>Total</th><th>Sessions</th><th>Average</th><th>Longest</th><th>First played</th><th>Last played</th><th>Share</th></tr></thead><tbody>${gameRows}</tbody></table></div></div>
 
-    ${advancementsHtml(evaluateBadges(data))}`;
+    ${advancementsHtml(evaluateBadges(statsData(true)))}`;
 }
 
 // Little stat chips for one game, shown on its page
@@ -244,7 +248,7 @@ function gameStatsHtml(it) {
   const rank = all.findIndex((x) => x.id === it.id) + 1;
   const lens = gs.map((x) => (x.e - x.s) / 1000);
   const first = gs.length ? Math.min(...gs.map((x) => x.s)) : 0;
-  const weekSec = gs.filter((x) => x.s >= startOfDay(Date.now()) - 6 * DAY_MS).reduce((n, x) => n + (x.e - x.s) / 1000, 0);
+  const weekSec = gs.filter((x) => x.s >= daysAgo(6)).reduce((n, x) => n + (x.e - x.s) / 1000, 0);
   const chip = (num, label) => `<div class="dstat"><b>${num}</b><small>${label}</small></div>`;
   return [
     chip(fmtHours(sec), 'Total playtime'),

@@ -18,10 +18,19 @@ function fmtClock(sec) {
   sec = Math.max(0, Math.floor(sec));
   return `${Math.floor(sec / 3600)}:${pad2(Math.floor((sec % 3600) / 60))}:${pad2(sec % 60)}`;
 }
+// Hours as "12.5h", or "12h 30m" when Settings → Playtime → "Hours look like" says so
 const fmtHours = (sec) => {
   const h = sec / 3600;
+  if (typeof prefs !== 'undefined' && prefs.settings && prefs.settings.hoursFormat === 'long' && h >= 1 && h < 100) {
+    const m = Math.floor((sec % 3600) / 60);
+    return m ? `${Math.floor(h)}h ${m}m` : `${Math.floor(h)}h`;
+  }
   return h >= 10 ? `${Math.round(h).toLocaleString()}h` : h >= 0.1 ? `${h.toFixed(1)}h` : `${Math.round(sec / 60)}m`;
 };
+
+// A CSS url() for any image address. A cover's file path can contain ' (Assassin's Creed), which ends a url('...')
+// early, so the address goes in double quotes, with the few characters that could end those percent-encoded.
+const cssUrl = (u) => `url("${String(u || '').replace(/["\\\n\r]/g, (c) => `%${c.charCodeAt(0).toString(16).padStart(2, '0')}`)}")`;
 
 // Confetti burst from a point (used for launches and the game picker)
 const fx = (() => {

@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-const EVENTS = ['library:updated', 'focus-search', 'state:update', 'navigate', 'launch:done', 'launch:phase', 'launch:update', 'barca:updated', 'matches:updated', 'news:updated', 'lock', 'update:available', 'update:progress'];
+const EVENTS = ['library:updated', 'focus-search', 'state:update', 'navigate', 'launch:done', 'launch:phase', 'launch:update', 'barca:updated', 'matches:updated', 'news:updated', 'update:available', 'update:progress'];
 
 contextBridge.exposeInMainWorld('api', {
   platform: process.platform,
@@ -10,7 +10,6 @@ contextBridge.exposeInMainWorld('api', {
   getIcon: (filePath) => ipcRenderer.invoke('icon:get', filePath),
   launch: (id) => ipcRenderer.invoke('item:launch', id),
   skipLaunchWait: () => ipcRenderer.invoke('launch:skip'),
-  unlock: () => ipcRenderer.invoke('lock:release'),
   shellStatus: () => ipcRenderer.invoke('shell:status'),
   shellEnable: () => ipcRenderer.invoke('shell:enable'),
   shellDisable: () => ipcRenderer.invoke('shell:disable'),

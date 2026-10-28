@@ -2,10 +2,7 @@
 // main button says "Start" / "Play" / "Launch" (or a translation), and presses it through Windows UI Automation (no
 // mouse movement, works while another window is on top). It never presses anything else, so an "Update", "Install" or
 // "Continue" button is left for the user.
-const { spawn } = require('child_process');
-const path = require('path');
-
-const POWERSHELL = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+const ps = require('./ps');
 
 // Words a launcher's main "go" button can say (any case). Deliberately no Continue / Accept / Install / Update / Download:
 // those can mean agreeing to something or changing the install, so they are always left to the user.
@@ -105,28 +102,26 @@ while ($true) {
 // cfg: { proc: 'launcher_main', cls?: 'main-action-button', start?: regex }. Leave cls out to match any big button by its
 // label; start defaults to DEFAULT_START. onEvent gets { type, name?, enabled?, hwnd? }
 function startAutoPress(cfg, onEvent, { dry = false, update = false } = {}) {
-  const child = spawn(POWERSHELL, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(PRESS_SCRIPT, 'utf16le').toString('base64')], {
-    windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'],
-    env: { ...process.env, NX_PROC: cfg.proc, NX_CLASS: cfg.cls || '', NX_START: cfg.start || DEFAULT_START, NX_DRY: dry ? '1' : '0', NX_UPDATE: update ? DEFAULT_UPDATE : '' },
-  });
-  let buf = '';
   let lastKey = '';
-  child.stdout.setEncoding('utf8');
-  child.stdout.on('data', (d) => {
-    buf += d;
-    let i;
-    while ((i = buf.indexOf('\n')) >= 0) {
-      const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
-      if (!line) continue;
-      const [type, a, b, c] = line.split('|');
-      const ev = type === 'button' ? { type, name: a, enabled: b === '1', hwnd: c } : type === 'clicked' || type === 'updated' ? { type, hwnd: a } : type === 'info' ? { type, text: a } : type === 'error' ? { type, message: a } : { type };
+  const child = ps.run(PRESS_SCRIPT, {
+    env: { NX_PROC: cfg.proc, NX_CLASS: cfg.cls || '', NX_START: cfg.start || DEFAULT_START, NX_DRY: dry ? '1' : '0', NX_UPDATE: update ? DEFAULT_UPDATE : '' },
+    onLine: (line) => {
+      const [type, ...rest] = line.split('|');
+      let ev;
+      if (type === 'button') {
+        // button|<name>|<enabled>|<hwnd>: the name itself may contain "|"
+        const hwnd = rest.pop(), enabled = rest.pop() === '1';
+        ev = { type, name: rest.join('|'), enabled, hwnd };
+      } else if (type === 'clicked' || type === 'updated') ev = { type, hwnd: rest[0] };
+      else if (type === 'info') ev = { type, text: rest.join('|') }; // several texts joined with " | "
+      else if (type === 'error') ev = { type, message: rest.join('|') };
+      else ev = { type };
       const key = JSON.stringify(ev);
-      if (type !== 'clicked' && type !== 'updated' && key === lastKey) { onEvent({ ...ev, repeat: true }); continue; } // still the same state
+      if (type !== 'clicked' && type !== 'updated' && key === lastKey) { onEvent({ ...ev, repeat: true }); return; } // still the same state
       lastKey = key;
       onEvent(ev);
-    }
+    },
   });
-  child.on('error', () => {});
   return { stop() { try { child.kill(); } catch {} } };
 }
 

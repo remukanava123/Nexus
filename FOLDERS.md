@@ -6,7 +6,7 @@
 | --- | --- |
 | `testi/` | This one: where the code is edited and built. `npm run dist` puts the new app in `dist/`. |
 | `Nexus/` | The app you actually run (Windows startup and the shortcuts point here). To update it: close Nexus, run `npm run dist` here, then double-click `Nexus/Update Nexus.bat`. |
-| `Nexus-Github/` | A clean copy of the source to upload to GitHub (no personal files, no builds). Put the installer from `dist/` on a GitHub Release instead of in the repo. |
+| `Nexus-Github/` | The old hand-made upload copy. No longer needed: this folder is now connected to GitHub itself (see `CLAUDE.md` → GitHub). |
 
 Nexus is an Electron app: one **main process** (`main.js`, runs in the background and does the real work) and one **interface** (`renderer/`, the pages you see). They talk through `src/preload.js`.
 
@@ -19,13 +19,14 @@ Nexus is an Electron app: one **main process** (`main.js`, runs in the backgroun
 | `renderer/` | The interface you see: pages, styles, sounds (details below). |
 | `shared/` | Data used by both sides: gacha reset times (`gacha-data.js`), Overwatch roles/heroes (`ow-data.js`), and the "What's new" text for each version (`release-notes.js`). |
 | `assets/` | The logo (`logo.svg`, `icon.png`, `tray.png`) and `sounds/` (the sidebar hover sounds, already trimmed and level-matched). |
-| `.github/workflows/build.yml` | Builds the Windows installer and Linux packages on GitHub when you push a tag like `v1.0.0`. |
+| `.github/workflows/main.yml` | Builds the Windows installer and Linux packages on GitHub: by hand from the Actions tab, or when you push a tag like `v1.3.0` (which also makes the GitHub release). |
 | `package.json` | App name, version, GitHub repo, and installer settings. Change `version` here before each release. |
 | `scripts/` | `check-version.js`, which runs before every build and checks the release notes exist for the version. |
 | `package-lock.json` | Exact versions of the libraries. Don't edit by hand. |
 | `README.md` | The public description of Nexus for GitHub. |
 | `FOLDERS.md` | This file. |
-| `HANDOFF.md` | Personal notes for me. Never published (listed in `.gitignore`). |
+| `HANDOFF.md` | Personal notes for me. Never published (listed in `.gitignore`). Partly out of date; `CLAUDE.md` is the current guide. |
+| `CLAUDE.md` | How the project works, how to build and test it, and what never to do. Read automatically by Claude Code. Kept on this PC only (listed in `.git/info/exclude`), since it names local folders and accounts. |
 
 ## Folders you can ignore (made by tools, not published)
 
@@ -44,7 +45,7 @@ Nexus is an Electron app: one **main process** (`main.js`, runs in the backgroun
 | `tracker.js` | Counts playtime while a game's process is running. |
 | `launch-watch.js` | Watches the game's window and sound so the launch cover knows when the game is ready. |
 | `launcher-press.js` | Presses "Start" in launchers that need it (Wuthering Waves). |
-| `launch-wuwa.ps1` | PowerShell helper for the Wuthering Waves launcher. |
+| `ps.js` | Runs the hidden PowerShell helpers, and holds the C# they share (window tricks, the running-programs list, the game-sound meter). The C# is compiled once into `helpers\` in the data folder. |
 | `bnet.js` | Starts Overwatch and other Blizzard games through Battle.net. |
 | `updates.js` | Shows game update progress during launch. |
 | `release-check.js` | Asks GitHub whether a newer Nexus release exists. |
@@ -97,10 +98,11 @@ Scripts in `renderer/js/`:
 
 1. Change `version` in `package.json` (for example `1.2.3`) and add an entry with the same number in `shared/release-notes.js`. That one number is used everywhere: the installer name (`Nexus Setup 1.2.3.exe`), the exe's Properties, Settings > About and the update check. The build stops with a message if the notes entry is missing.
 2. Close Nexus, run `npm run dist`, then run `Nexus/Update Nexus.bat`.
-3. Copy the source into `Nexus-Github`, push it, and create a GitHub release tagged with the same number (`1.2.3`), attaching `dist/Nexus Setup 1.2.3.exe`.
+3. Commit and push from this folder (it is connected to github.com/remukanava123/Nexus), then push a tag with a `v` in front (`git tag v1.2.3`, `git push origin v1.2.3`). GitHub Actions builds the installer and the Linux packages and creates the release with them attached. (Or create the release by hand and attach `dist/Nexus Setup 1.2.3.exe`.)
 
 ## Where things go
 
 - New interface feature: add a script in `renderer/js/` and one `<script>` line in `renderer/index.html`.
 - New place to look for games: add a `scan...` function in `src/scanner.js`.
-- New setting: add a default in `src/store.js` and a row in `renderer/js/settings-ui.js`.
+- New setting: add a default in `src/store.js` and a row in `renderer/js/settings-ui.js` (add its key to `ADVANCED_ROWS` there if it belongs on the Advanced tab). Appearance settings usually become a `data-` attribute or class on `<body>` in `renderer/js/theme.js`, styled at the end of `renderer/css/app.css`.
+- Anything that needs PowerShell: start it with `ps.run()` from `src/ps.js`, and put any C# into `NATIVE` there rather than calling `Add-Type` in a script.

@@ -35,7 +35,8 @@ async function launchViaBattleNet({ exe, code, onPhase, onNeedsLogin, timeoutMs 
   let steady = 0;
   let warned = false;
   let lastStart = Date.now();
-  while (Date.now() - t0 < timeoutMs) {
+  let limit = timeoutMs;
+  while (Date.now() - t0 < limit) {
     await sleep(1500);
     const s = await battleNetTitles();
     if (!s) continue;
@@ -45,7 +46,11 @@ async function launchViaBattleNet({ exe, code, onPhase, onNeedsLogin, timeoutMs 
       if (++steady >= 2) break; // logged in on two checks in a row (about 3 s)
     } else {
       steady = 0;
-      if (isLoginScreen(s.titles) && !warned && Date.now() - t0 > 40000) { warned = true; if (onNeedsLogin) onNeedsLogin(); }
+      if (isLoginScreen(s.titles) && !warned && Date.now() - t0 > 40000) {
+        warned = true;
+        limit = Math.max(limit, 15 * 60000); // someone is logging in (two-factor codes take a while): keep waiting for them
+        if (onNeedsLogin) onNeedsLogin();
+      }
     }
   }
   if (steady < 2) return 'timeout';

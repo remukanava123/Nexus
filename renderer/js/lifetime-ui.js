@@ -1,21 +1,27 @@
 // Total hours (from Steam, the Overwatch profile or typed in) and Steam achievements, on a game's page.
 const lifeOf = (id) => (prefs.lifetime || {})[id] || null;
 
-// Hours in Nexus plus whatever happened before it: never less than what Nexus itself counted
-function totalSeconds(id) {
+// Hours in Nexus plus whatever happened before it: never less than what Nexus itself counted. Advancements always use this.
+function realSeconds(id) {
   const nexus = playSeconds(id);
   const l = lifeOf(id);
   return l ? Math.max(l.sec, nexus) : nexus;
 }
 
+// The hours shown on covers, pages and stats (Settings → Playtime → "Hours to show"): your real total, or only what
+// Nexus counted itself. "Both" counts the total and adds the Nexus part next to it.
+const hoursMode = () => (prefs.settings && prefs.settings.hoursMode) || 'total';
+const totalSeconds = (id) => (hoursMode() === 'nexus' ? playSeconds(id) : realSeconds(id));
+
 const LIFE_SOURCE = { steam: 'Steam', overwatch: 'your Overwatch profile', manual: 'you' };
 
-// "632h played · 43h in Nexus"
-function playedText(id) {
-  const total = totalSeconds(id);
+// "632h played", "43h in Nexus" or "632h played · 43h in Nexus", depending on the setting
+function playedText(id, short = false) {
   const nexus = playSeconds(id);
-  const l = lifeOf(id);
-  if (l && total - nexus >= 600) return `${fmtHours(total)} played${nexus >= 60 ? ` · ${fmtHours(nexus)} in Nexus` : ''}`;
+  if (hoursMode() === 'nexus') return `${fmtHours(nexus)} in Nexus`;
+  const total = realSeconds(id);
+  if (hoursMode() === 'both' && lifeOf(id) && total - nexus >= 600 && nexus >= 60) return `${fmtHours(total)}${short ? '' : ' played'} · ${fmtHours(nexus)} in Nexus`;
+  if (!short && lifeOf(id) && total - nexus >= 600 && nexus >= 60) return `${fmtHours(total)} played · ${fmtHours(nexus)} in Nexus`; // a game's own page always explains the total
   return `${fmtHours(total)} played`;
 }
 

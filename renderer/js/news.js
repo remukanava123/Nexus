@@ -64,7 +64,7 @@ function renderNews() {
 
   const chips = [['all', 'All'], ['updates', 'Updates only']]
     .map(([k, n]) => `<button class="chip${newsFilter === k ? ' active' : ''}" data-nfilter="${k}">${n}</button>`)
-    .concat(games.map((g) => `<button class="chip${newsFilter === g.id ? ' active' : ''}" data-nfilter="${esc(g.id)}">${esc(g.name)}${newsData.fresh && newsData.fresh[g.id] ? `<em class="nw-new">${newsData.fresh[g.id]}</em>` : ''}</button>`)).join('');
+    .concat(games.map((g) => `<button class="chip${newsFilter === g.id ? ' active' : ''}" data-nfilter="${esc(g.id)}">${esc(nameOf(g))}${newsData.fresh && newsData.fresh[g.id] ? `<em class="nw-new">${newsData.fresh[g.id]}</em>` : ''}</button>`)).join('');
 
   // HoYoverse launcher banners ("what's on right now") for the games that have them
   const banners = games.flatMap((g) => (newsData.byGame[g.id].banners || []).slice(0, 3).map((b) => ({ ...b, game: g.name })));
@@ -80,7 +80,7 @@ function renderNews() {
     if (!list.length) return '';
     return `<div class="nw-card b-card" style="--i:${i}">
       <div class="nw-head"><div class="nw-art">${g.cover ? `<img src="${esc(g.cover)}" alt="" loading="lazy" data-hide-self>` : ''}</div>
-        <div><b data-open="${esc(g.id)}" class="nw-name">${esc(g.name)}</b>${d.version ? `<span class="nw-ver">v${esc(d.version)}</span>` : ''}
+        <div><b data-open="${esc(g.id)}" class="nw-name">${esc(nameOf(g))}</b>${d.version ? `<span class="nw-ver">v${esc(d.version)}</span>` : ''}
           <small>${d.items[0] && d.items[0].date ? `Latest ${timeAgo(d.items[0].date)}` : 'From the game launcher'}</small></div></div>
       <div class="nw-list">${list.slice(0, 6).map((n) => newsItemHtml(n, { gameId: g.id })).join('')}</div></div>`;
   }).join('');
@@ -123,7 +123,7 @@ function initNews() {
     if (ext) { e.preventDefault(); window.api.openExternal(ext.dataset.ext); return true; }
     return false;
   };
-  detail.addEventListener('click', go);
+  // (links on a game's page are opened by app.js's own click handler for #detail)
   content.addEventListener('click', (e) => {
     if (view !== 'news') return;
     if (go(e)) return;

@@ -317,7 +317,6 @@ body.no-anim .spinner { animation: spin .8s linear infinite !important; }
 body.no-blur * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 body.hide-badges .badge { display: none; }
 body.hide-titles .game .title, body.hide-titles .game .meta { display: none; }
-body.hide-playtime .meta.play { display: none; }
 
 /* live / playing indicators */
 .live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #3ddc84; box-shadow: 0 0 0 0 rgba(61, 220, 132, .6); animation: pulse 1.8s infinite; vertical-align: 1px; }
@@ -390,12 +389,6 @@ input[type="checkbox"] { accent-color: var(--accent); }
 .legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 12px; font-size: 13px; color: #cfd3de; }
 .legend-item i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
 .muted-line { margin: 0; color: var(--muted); }
-.badge-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
-.badge-card { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--radius); background: var(--surface-2); border: 1px solid var(--border); opacity: .5; filter: grayscale(.9); }
-.badge-card.got { opacity: 1; filter: none; border-color: rgba(var(--accent-rgb), .4); background: linear-gradient(135deg, rgba(var(--accent-rgb), .12), var(--surface-2)); }
-.badge-icon { font-size: 26px; width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 12px; background: var(--surface-3); }
-.badge-name { font-weight: 600; }
-.badge-desc { font-size: 12px; color: var(--muted); }
 
 /* ---------- gacha helper ---------- */
 .g-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
@@ -580,7 +573,7 @@ body.is-big .titlebar { display: none; }
 
 /* ---------- pages ---------- */
 /* Each block fades up in turn (--i is set by playEnter()) when you switch pages */
-.anim-in :is(.hero, .greeting, .gotd, .nowplaying, .section-head, .game, .tile, .stat-card, .panel, .g-card, .g-chip, .badge-card, .set-section, .facts-strip, .page-title, .page-sub, .chips) {
+.anim-in :is(.hero, .greeting, .gotd, .nowplaying, .section-head, .game, .tile, .stat-card, .panel, .g-card, .g-chip, .set-section, .facts-strip, .page-title, .page-sub, .chips) {
   animation: rise .5s cubic-bezier(.2, .8, .2, 1) backwards;
   animation-delay: calc(var(--i, 0) * 28ms);
 }
@@ -983,20 +976,9 @@ body.leaving .leave-bg { opacity: 1; transform: scale(1); }
 
 /* While the launch cover is up it catches every click, so nothing underneath can be pressed by accident */
 body.leaving .leave { pointer-events: auto; }
-body.leaving, body.locked { user-select: none; }
+body.leaving { user-select: none; }
 
 /* Locked behind a running game */
-.lock { position: fixed; inset: 0; z-index: 390; display: grid; place-items: center; background: rgba(8, 10, 16, .82); backdrop-filter: blur(14px); user-select: none; }
-body.locked :is(.titlebar, .sidebar, main, .detail, .picker, .big) { pointer-events: none; }
-.lock-box { display: flex; flex-direction: column; align-items: center; gap: 10px; max-width: min(460px, 90vw); text-align: center; color: #aab0c0; }
-.lock-icon { font-size: 40px; }
-.lock-box b { font-size: 24px; color: #fff; letter-spacing: -.3px; }
-.lock-box p { margin: 0 0 10px; font-size: 14px; line-height: 1.5; }
-.lock-box small { font-size: 12px; color: #7d8496; }
-.lock-hold { position: relative; overflow: hidden; padding: 10px 26px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .18); background: rgba(255, 255, 255, .06); color: #e4e7ef; font: inherit; font-size: 14px; cursor: pointer; }
-.lock-hold i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--accent, #7c5cff); opacity: .55; }
-.lock-hold span { position: relative; }
-.lock-hold.holding i { width: 100%; transition: width 1s linear; }
 
 /* ===== style-v6.css (merged, same order as before) ===== */
 /* v6: the "epic" layer. Everything here is off when animations are off (body.no-anim). */
@@ -1014,13 +996,13 @@ body:not(.no-anim) main::before {
 main > * { position: relative; z-index: 1; }
 
 /* cards: cursor spotlight, tilt, shine sweep */
-body:not(.no-anim) :is(.game, .tile, .stat-card, .g-card, .badge-card) { --mx: 50%; --my: 50%; position: relative; }
-body:not(.no-anim) :is(.tile, .stat-card, .g-card, .badge-card) { overflow: hidden; }
-body:not(.no-anim) :is(.tile, .stat-card, .g-card, .badge-card)::after {
+body:not(.no-anim) :is(.game, .tile, .stat-card, .g-card) { --mx: 50%; --my: 50%; position: relative; }
+body:not(.no-anim) :is(.tile, .stat-card, .g-card) { overflow: hidden; }
+body:not(.no-anim) :is(.tile, .stat-card, .g-card)::after {
   content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .25s;
   background: radial-gradient(220px circle at var(--mx) var(--my), rgba(var(--accent-rgb), .28), transparent 65%);
 }
-body:not(.no-anim) :is(.tile, .stat-card, .g-card, .badge-card):hover::after { opacity: 1; }
+body:not(.no-anim) :is(.tile, .stat-card, .g-card):hover::after { opacity: 1; }
 /* rows scroll sideways, which clips anything that lifts out of them, so give them room */
 .row { padding: 16px 12px 12px; margin: -16px -12px 0; }
 .game:hover { z-index: 5; }
@@ -1075,14 +1057,14 @@ body:not(.no-anim) .menu:not([hidden]) { animation: popIn .18s ease-out both; tr
 @keyframes detailIn { from { opacity: 0; transform: translateY(24px) scale(.985); } to { opacity: 1; transform: none; } }
 
 /* progress bars shimmer, live dots pulse */
-body:not(.no-anim) :is(.bar > i, .progress > i, .cover-bar > i) { background-size: 200% 100%; animation: shimmer 1.6s linear infinite; }
+body:not(.no-anim) :is(.bar > i, .progress > i) { background-size: 200% 100%; animation: shimmer 1.6s linear infinite; }
 @keyframes shimmer { to { background-position: -200% 0; } }
 
 /* scrollbar picks up the accent */
 ::-webkit-scrollbar-thumb:hover { background: rgba(var(--accent-rgb), .6); }
 
 /* launch cover: rings pulsing behind the art */
-body:not(.no-anim) .leave-art, body:not(.no-anim) .leave-card { animation: coverFloat 5s ease-in-out infinite alternate; }
+body:not(.no-anim) .leave-card { animation: coverFloat 5s ease-in-out infinite alternate; }
 @keyframes coverFloat { from { transform: translateY(0); } to { transform: translateY(-8px); } }
 
 /* ===== style-v7.css (merged, same order as before) ===== */
@@ -1351,3 +1333,54 @@ kbd { padding: 2px 7px; border-radius: 6px; background: var(--surface-3); border
 .ub-prog { width: 200px; margin-left: auto; text-align: left; }
 .ub-bar { height: 6px; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
 .ub-bar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .2s; }
+
+/* ===== Customisation (Settings → Appearance and Sidebar). theme.js sets these data attributes and variables. ===== */
+:root { --gap: 18px; --bg-k: 1; }
+.grid-games { gap: calc(var(--gap) + 2px) var(--gap); }
+.row { gap: var(--gap); }
+body[data-density="compact"] .grid-games { gap: calc(var(--gap) * .66) calc(var(--gap) * .66); }
+
+/* Fonts */
+body[data-font="system"] { font-family: system-ui, sans-serif; }
+body[data-font="rounded"] { font-family: "Nunito", "Varela Round", "Arial Rounded MT Bold", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; }
+body[data-font="mono"] { font-family: "Cascadia Code", "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace; letter-spacing: -.2px; }
+body[data-font="serif"] { font-family: Georgia, "Iowan Old Style", "Times New Roman", serif; }
+
+/* Cover shape: tall box art, square, or wide (cropped from the same art) */
+body[data-cover="square"] .game .cover { aspect-ratio: 1; }
+body[data-cover="landscape"] .game .cover { aspect-ratio: 16 / 9; }
+body[data-cover="landscape"] .grid-games { grid-template-columns: repeat(auto-fill, minmax(calc(var(--card) * 1.6), 1fr)); }
+body[data-cover="landscape"] .row { grid-auto-columns: calc(var(--card) * 1.6); }
+
+/* What a cover does when you point at it */
+body[data-hover="zoom"] .game:hover .cover, body[data-hover="zoom"] .game.selected .cover { transform: scale(1.05); }
+body[data-hover="glow"] .game:hover .cover, body[data-hover="glow"] .game.selected .cover { transform: none; box-shadow: 0 0 0 2px var(--accent), 0 0 34px rgba(var(--accent-rgb), .55); }
+body[data-hover="none"] .game:hover .cover, body[data-hover="none"] .game.selected .cover { transform: none; box-shadow: 0 6px 18px rgba(0, 0, 0, .35), 0 0 0 2px rgba(255, 255, 255, .5); }
+
+/* Keyboard focus shows like the search highlight */
+.game:focus-visible .cover { box-shadow: 0 0 0 2px var(--accent), 0 16px 34px rgba(0, 0, 0, .5); }
+.tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+body.hide-fav .game .fav-dot, body.hide-fav .tile .fav-dot { display: none; }
+body.hide-running .run-badge { display: none; }
+
+/* How strong the page background is */
+body[data-bg="glow"] .page-bg { opacity: var(--bg-k); }
+body[data-bg="art"] .page-bg { opacity: calc(.28 * var(--bg-k)); }
+
+/* Icons-only sidebar */
+body.side-icons { grid-template-columns: 72px 1fr; }
+body.side-icons .sidebar { padding: 8px 10px 16px; }
+body.side-icons .sidebar button { font-size: 0; gap: 0; justify-content: center; padding: 11px 0; }
+body.side-icons .sidebar button svg { width: 21px; height: 21px; }
+body.side-icons .sidebar .count, body.side-icons .now-status div { display: none; }
+body.side-icons .now-status { justify-content: center; }
+body.side-icons .nav-dot { position: absolute; top: 8px; right: 12px; }
+
+/* One colour for every sidebar icon (the accent) instead of a colour each */
+body.plain-nav .sidebar button[data-view], body.plain-nav .sidebar-bottom button { --nc: var(--accent); }
+body.plain-nav .sidebar button[data-view="barca"]:hover, body.plain-nav .sidebar button[data-view="barca"].active { background: color-mix(in srgb, var(--accent) 18%, var(--surface-2)); }
+
+@media (prefers-reduced-motion: reduce) {
+  body:not(.force-anim) *, body:not(.force-anim) *::before, body:not(.force-anim) *::after { animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+}

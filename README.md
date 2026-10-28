@@ -8,8 +8,8 @@ A game and app launcher for Windows and Linux (Fedora, Bazzite), built with Elec
 
 - **Library:** games, apps and websites in one searchable view, with covers, descriptions and screenshots.
 - **Tags and filters:** per-game tags (Playing, Finished, Co-op and so on), with starter tags added for games it recognises.
-- **Playtime tracking:** counts hours for anything it sees running, including games started elsewhere.
-- **Total hours:** games show hours played in total, for example "632h played, 43h in Nexus". Steam hours are read from Steam's own files on your PC (no login). Overwatch hours come from your public career profile (set your BattleTag in Settings). Epic, EA, HoYoPlay, Kuro and Battle.net don't share their playtime, so for those you can type your hours in on the game's page.
+- **Playtime tracking:** counts hours for anything it sees running, including games started elsewhere. It checks every 3 seconds and can see most games that run as administrator, so elevated games such as Star Rail are tracked by their real path. Custom games added as a shortcut (`.lnk`, or a Steam `.url`) are tracked through the program the shortcut points to, and a game whose launcher starts a different exe in the same folder (Roblox, for example) still counts.
+- **Total hours:** games show hours played in total, for example "632h played, 43h in Nexus". Steam hours are read from Steam's own files on your PC (no login). Overwatch hours come from your public career profile (set your BattleTag in Settings). Epic, EA, HoYoPlay, Kuro and Battle.net don't share their playtime, so for those you can type your hours in on the game's page. **Settings → Playtime → Hours to show** switches between your real total, only the hours Nexus counted, or both. Advancements always count your real total.
 - **Steam achievements:** a game's page shows how many you have unlocked, your rarest ones, the most recent, and what is still locked, all read from Steam's local files.
 - **Stats and advancements:** charts, per-game stats and over 120 advancements in tiers with rarity, progress bars and a few secret ones, plus a Steam-style popup with a sound when you unlock one.
 - **Welcome guide and update notes:** a short first-run setup, a Basic and an Advanced settings tab, an "Update available" banner on Home that downloads and runs the new installer from your GitHub release (installed copy only; other copies open the download page), and a "What's new" page shown once after you update.
@@ -19,8 +19,8 @@ A game and app launcher for Windows and Linux (Fedora, Bazzite), built with Elec
 - **Launch cover:** while a game starts, Nexus shows a full-screen cover with the game's art, a progress bar and tips, lore and trivia. It only fades once the game window has settled (stopped resizing, steady title) and the game itself is playing sound (its own processes in the Windows volume mixer; a launcher's music doesn't count), then brings the game to the front. A game that stays silent (muted) still counts after a minute.
 - **Always on top while launching:** the cover is fullscreen and sits above the taskbar, pop-ups and any newly opened windows until it fades, and keeps putting itself back on top if something is pushed over it. (Windows' own UAC prompt and system toasts live on a layer no app can cover.) **Hide Nexus now** or Esc always lets you out.
 - **Launchers pressed for you:**
-  - **Wuthering Waves:** Nexus opens the launcher and presses its main button through Windows UI Automation. It presses a button that says Start, Play, Launch (or a translation, or Play Now / Launch Game and so on). It never presses Update, Install, Continue, Accept or Download, so those are left to you: Nexus steps aside, brings the launcher forward and sends a notification.
-  - **Battle.net (Overwatch and other Blizzard games):** Battle.net ignores the "launch" command while it is still starting, so Nexus opens it, waits until it is logged in, and then sends the command to the running copy. If Battle.net is waiting for you to log in, you get a notification and the game starts as soon as you do.
+  - **Wuthering Waves:** Nexus opens the launcher and presses its main button through Windows UI Automation. It presses a button that says Start, Play, Launch (or a translation, or Play Now / Launch Game and so on). A greyed-out Start button (the launcher still checking its files) is waited for, for up to 10 minutes. Nexus never presses Install, Continue, Accept or Download (and Update only with the setting below), so those are left to you: Nexus steps aside, brings the launcher forward and sends a notification, but keeps watching, and presses Start as soon as the launcher shows it.
+  - **Battle.net (Overwatch and other Blizzard games):** Battle.net ignores the "launch" command while it is still starting, so Nexus opens it, waits until it is logged in, and then sends the command to the running copy. If Battle.net is waiting for you to log in, Nexus steps aside so you can, sends a notification, and starts the game as soon as you have logged in (it waits up to 15 minutes for that). Clicking Play again while it waits doesn't start a second wait.
   - **Other launchers:** add an `autoPress` entry to a custom game in `library.json` (`proc` = the launcher's process name; `cls` is optional, and `start` defaults to the launch words above).
 - **Game updates during launch:** if a game or its launcher needs an update, the cover says **Installing an update** with how much, how fast and how long is left.
   - **Steam:** exact numbers from the game's manifest (GB done of GB total, MB/s, time left).
@@ -30,7 +30,7 @@ A game and app launcher for Windows and Linux (Fedora, Bazzite), built with Elec
 - **While a game is running (setting, three modes):** games always get the cover and the fade, whatever "Fade Nexus away after launching apps and sites" says. Then:
   - **Stay behind the game** (default): see below.
   - **Stay on top, nearly invisible:** Nexus fades to 1% opacity and stays above the game, click-through, so your clicks and keys go to the game. When the game closes or crashes, Nexus fades back to solid and takes focus. This is also what *Stay behind* becomes when "Always on top" is on, since nothing can be behind an always-on-top window. A see-through window over an exclusive-fullscreen game can cost a little performance, so use *behind* if you notice that.
-- **Stay behind the game:** Nexus never closes or hides itself after a launch. The cover fades to invisible (clicks go straight through it), the game is raised, and Nexus slips in directly behind it in the window order, even if Windows refuses to give the game focus (elevated games like Star Rail). About 5 seconds later Nexus is solid again back there, fullscreen, so quitting or alt-tabbing lands on Nexus, never your desktop. Nexus notices the game's window disappearing within a few seconds and comes back, with the playtime tracker confirming so a brief window change doesn't pop it over your game.
+- **Stay behind the game:** Nexus never closes or hides itself after a launch. The cover fades to invisible (clicks go straight through it), the game is raised, and Nexus slips in directly behind it in the window order, even if Windows refuses to give the game focus (elevated games like Star Rail). About 5 seconds later Nexus is solid again back there, fullscreen, so quitting or alt-tabbing lands on Nexus, never your desktop. The playtime tracker notices the game closing within a few seconds and Nexus comes back. Nothing extra runs while you play; only when tracking is off, or the tracker can't recognise the game, does a slow window check stand in.
 - **Apps and sites** (setting *Step behind apps and sites you launch*): Nexus fades out, waits for the app's window (up to 8 s), goes behind it and turns solid again about 5 s later. Not locked.
 - **Hide Nexus now / Esc / giving up waiting:** the same step-behind, to the back of the window stack.
 - **During the launch cover** nothing underneath can be clicked or typed into.
@@ -41,7 +41,17 @@ A game and app launcher for Windows and Linux (Fedora, Bazzite), built with Elec
 - **Overwatch page:** a competitive match log with statistics: record, win rate, streaks, win rate by hero, role, map and map type, rolling trend, rank progress in percent per role, games per day, best times of day and weekdays, after-win vs after-loss win rate, session stats, fun facts, a career card from the public stats site, and an editable history. Results are typed in on the page, or (experimental, Settings → Game overlay) automatically from your stats, which also fills in the hero. Maps can't be detected, so add them in the history.
 - **Big-screen mode:** a fullscreen, controller-friendly view of your library.
 - **Tray and startup:** can start with Windows, open fullscreen, and keep running in the tray.
-- **Customisation:** themes, accent colours, hover animations and sounds, each of which can be turned off in Settings.
+- **Customisation:** almost everything you see can be changed in Settings (a Basic and an Advanced tab):
+  - **Look:** themes, accent colour, font, corner roundness, interface size, density, page background and how strong it is, blur.
+  - **Covers:** size, shape (tall, square or wide), the space between them, what happens when you point at one (lift, zoom, glow or just an outline), and what shows underneath (hours, when you last played, the launcher, or nothing). The launcher badge, favourite star, "Playing" label and titles can each be hidden.
+  - **Names:** right-click any game or app → **Rename…** to show your own name for it. Covers, news and tips still use the real name.
+  - **Sidebar:** icons and names, or a narrow icons-only bar; colourful icons or all in your accent colour; hide Apps, Websites, Favourites, Stats, News or Barça.
+  - **Hours:** your real total, only Nexus's hours, or both; shown as "12.5h" or "12h 30m"; weeks starting on Monday or Sunday.
+  - **Home page:** each section on or off, and how many games per row.
+  - **Search:** whether it also finds apps and websites.
+  - **Launching:** the full-screen cover, its tips and its background art, confetti, the fade, what Nexus does while a game runs, and when it counts the game as ready.
+  - **Popups:** advancement popups on or off, which corner they appear in, and for how long.
+  - **Sound and motion:** interface sounds, hover sounds, volume, the startup animation and every animation (animations also calm down when Windows' "Animation effects" is off).
 
 ## Shortcuts
 
@@ -107,14 +117,17 @@ This produces a Windows installer in the `dist` folder. On Windows, `electron-bu
 
 ## Where your data lives
 
-Nexus keeps its files in `%APPDATA%\Nexus` (Settings → Data folder opens it). Your library, favourites, playtime, tags, gacha progress and settings are in `library.json`. Settings → Back up your data exports a copy.
+Nexus keeps its files in `%APPDATA%\Nexus` (Settings → Data folder opens it). Your library, favourites, playtime, tags, names, gacha progress, Overwatch matches and settings are in `library.json`. Settings → Back up your data exports all of that (not the downloaded covers), and Restore brings all of it back.
+
+- Every successful start leaves a copy in `library.last-good.json`. If `library.json` is ever damaged (a crash or power cut while it was being written), Nexus keeps the damaged file as `library.damaged-<time>.json` and carries on from the last good copy instead of starting over.
+- `helpers\` holds a small compiled helper (`nexus-native-*.dll`) that Nexus builds on first start. It is rebuilt automatically when Nexus updates, and is safe to delete.
 
 ## Project layout
 
 | Path | What it is |
 | --- | --- |
 | `main.js` | Electron main process: windows, tray, launching, IPC |
-| `src/` | Scanner, playtime tracker, store, feeds (news and Barça data), cover lookup, preload bridge |
+| `src/` | Scanner, playtime tracker, store, feeds (news and Barça data), cover lookup, preload bridge, and `ps.js` (the Windows helper all PowerShell work goes through) |
 | `shared/gacha-data.js` | Gacha resets, stamina and banner maths |
 | `renderer/` | The interface: pages (`index.html`), `css/`, and one script per feature in `js/` |
 
@@ -123,8 +136,8 @@ See [FOLDERS.md](FOLDERS.md) for a file-by-file guide.
 ## Notes
 
 - Low resource mode (Settings → Data & maintenance) turns off graphics acceleration to save memory. Nexus also stops all animation while it is hidden or behind a game.
-- Games that require administrator rights show a Windows UAC prompt when launched.
-- Wuthering Waves opens its own launcher, and you press Start there.
+- Games that require administrator rights show a Windows UAC prompt when launched (unless you tick *Skip the Windows admin prompt* on the game's page).
+- Nexus's Windows helpers (the playtime tracker, the launch watcher, the window tricks) share one small C# helper that is compiled once into the data folder, instead of being compiled again every time a helper starts.
 - Barça and news data come from public sources (ESPN, BBC Sport, BarcaBlog, Google News, HoYoPlay, Steam news) and are cached locally, so the pages need internet only the first time.
 
 

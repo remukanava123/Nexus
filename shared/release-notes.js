@@ -1,5 +1,18 @@
 // What's new, shown once after Nexus is updated. Add an entry for each version you release (the key is the version in package.json).
 module.exports = {
+  '1.3.0': {
+    title: 'Games that really start, and make it yours',
+    items: [
+      ['🚀', 'Launchers that start the game', 'Nexus no longer gives up while a launcher is still checking its files (a greyed-out Start button). If a launcher needs you, Nexus steps aside but keeps watching, and presses Start the moment it appears. Battle.net waits while you log in and then starts the game.'],
+      ['⏱️', 'Tracking that sees more games', 'Games that run as administrator (Star Rail and friends), games added as a shortcut, and games whose launcher starts another program (like Roblox) are now counted.'],
+      ['⚡', 'Lighter and quicker', 'The Windows helpers no longer rebuild themselves every time they start, nothing extra runs while you play, and Nexus is back about a second after you quit a game.'],
+      ['🎨', 'Customise almost everything', 'Font, cover shape, spacing and hover effect, what shows under each cover, an icons-only sidebar, hiding sidebar pages, popup corner and more. Settings → Appearance, Sidebar and Playtime.'],
+      ['🕐', 'Your hours, your way', 'Show your total hours, only the hours Nexus counted, or both, as “12.5h” or “12h 30m”. Settings → Playtime → Hours to show.'],
+      ['✏️', 'Rename anything', 'Right-click a game or app → Rename… to show your own name for it.'],
+      ['🛟', 'Safer data', 'If your library file is ever damaged, Nexus carries on from the last good copy instead of starting over. Backups now include tags, names, Overwatch matches and typed-in hours.'],
+      ['🐛', 'Fixes', 'Links on a game’s page no longer open twice, streaks survive the clock change, covers with an apostrophe in their path show up, and background updates no longer wipe what you are typing.'],
+    ],
+  },
   '1.2.2': {
     title: 'Hours, achievements and new advancements',
     items: [
