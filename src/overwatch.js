@@ -40,4 +40,20 @@ async function fetchCompetitive(tag, fetchFn) {
   return { won: g.games_won || 0, lost: g.games_lost || 0, heroes };
 }
 
-module.exports = { fetchProfile, fetchCompetitive, fmtTag };
+// The current heroes (with roles) and maps, so the match log knows heroes released after this version of Nexus.
+// -> { heroes: { tank: [...], damage: [...], support: [...] }, maps: { Control: [...], ... } }. Only competitive map types.
+const MAP_TYPES = { control: 'Control', escort: 'Escort', hybrid: 'Hybrid', push: 'Push', flashpoint: 'Flashpoint', clash: 'Clash', assault: 'Assault' };
+async function fetchCatalog(fetchFn) {
+  const root = BASE.replace(/\/players$/, '');
+  const [heroList, mapList] = await Promise.all([getJson(`${root}/heroes`, fetchFn), getJson(`${root}/maps`, fetchFn)]);
+  const heroes = {}, maps = {};
+  for (const h of Array.isArray(heroList) ? heroList : []) if (h && h.name && h.role) (heroes[h.role] = heroes[h.role] || []).push(String(h.name).slice(0, 40));
+  for (const m of Array.isArray(mapList) ? mapList : []) {
+    const type = (m.gamemodes || []).map((g) => MAP_TYPES[g]).find(Boolean);
+    if (m && m.name && type) (maps[type] = maps[type] || []).push(String(m.name).replace(/’/g, "'").slice(0, 40));
+  }
+  if (!Object.keys(heroes).length) throw new Error('no heroes in the answer');
+  return { heroes, maps };
+}
+
+module.exports = { fetchProfile, fetchCompetitive, fetchCatalog, fmtTag };

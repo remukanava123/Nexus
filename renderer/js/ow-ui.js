@@ -2,6 +2,7 @@
 let owMatches = [];
 let owLastRole = '';
 let owPeriod = 'all', owRole = 'all', owLoaded = false, owProfile = null, owProfileAt = 0;
+let owNewHeroes = []; // heroes picked for the match being added (you can play more than one)
 
 const OW_DAY = 86400000;
 const owPct = (w, n) => (n ? Math.round((w / n) * 100) : null);
@@ -19,11 +20,12 @@ function owFiltered() {
 function owGroup(list, keyFn, minGames = 1) {
   const g = new Map();
   for (const m of list) {
-    const k = keyFn(m);
-    if (!k) continue;
-    const x = g.get(k) || { key: k, n: 0, w: 0, l: 0, d: 0 };
-    x.n++; x[m.r]++;
-    g.set(k, x);
+    for (const k of [].concat(keyFn(m))) { // a match with several heroes counts for each of them
+      if (!k) continue;
+      const x = g.get(k) || { key: k, n: 0, w: 0, l: 0, d: 0 };
+      x.n++; x[m.r]++;
+      g.set(k, x);
+    }
   }
   return [...g.values()].filter((x) => x.n >= minGames).map((x) => ({ ...x, wr: owPct(x.w, x.w + x.l) }));
 }
@@ -70,7 +72,13 @@ function owColumns(items, { max = null } = {}) {
   return `<div class="ow-cols">${items.map((i) => `<div class="ow-col" title="${esc(i.tip || '')}"><span class="ow-col-bar"><i class="${i.cls || ''}" style="height:${Math.round((i.v / hi) * 100)}%"></i></span><small>${esc(i.label)}</small></div>`).join('')}</div>`;
 }
 
+// Heroes as chips with a box to add more: for the new-match form (key "new") or one match in the history (its id)
+function owHeroPicker(key, heroes, placeholder) {
+  return `<div class="ow-heroes" data-owpick="${esc(key)}">${heroes.map((h) => `<span class="ow-hchip" data-role="${OW.roleOf(h)}">${esc(h)}<button type="button" data-owunpick="${esc(h)}" title="Remove">×</button></span>`).join('')}<input list="owHeroes" placeholder="${esc(heroes.length ? '+ hero' : placeholder)}" spellcheck="false"></div>`;
+}
+
 function renderOverwatch() {
+  OW.extend(prefs.owCatalog); // heroes and maps newer than this version of Nexus
   if (!owLoaded) {
     content.innerHTML = '<h1 class="page-title">Overwatch</h1><div class="loading"><div class="spinner"></div>Loading your matches…</div>';
     window.api.matchesList().then((l) => { owMatches = l || []; owLoaded = true; if (view === 'overwatch') renderOverwatch(); });
@@ -95,7 +103,7 @@ function renderOverwatch() {
   const bestSession = sessions.map((s) => ({ ...s, w: s.games.filter((m) => m.r === 'w').length, l: s.games.filter((m) => m.r === 'l').length })).filter((s) => s.w + s.l >= 3).sort((a, b) => (b.w / (b.w + b.l)) - (a.w / (a.w + a.l)) || b.games.length - a.games.length)[0];
 
   // by hero, role, map, map type
-  const heroes = owGroup(list, (m) => m.hero).sort((a, b) => b.n - a.n || (b.wr || 0) - (a.wr || 0));
+  const heroes = owGroup(list, (m) => OW.heroesOf(m)).sort((a, b) => b.n - a.n || (b.wr || 0) - (a.wr || 0));
   const roles = owGroup(list, (m) => m.role || OW.roleOf(m.hero)).map((r) => ({ ...r, key: OW.ROLES[r.key] || r.key })).sort((a, b) => b.n - a.n);
   const maps = owGroup(list, (m) => m.map).sort((a, b) => b.n - a.n || (b.wr || 0) - (a.wr || 0));
   const types = owGroup(list, (m) => OW.mapTypeOf(m.map)).sort((a, b) => b.n - a.n);
@@ -164,13 +172,13 @@ function renderOverwatch() {
       <h3>Add a match</h3>
       <div class="ow-form">
         <div class="ow-res"><button class="btn ow-r w" data-owres="w">Win</button><button class="btn ow-r l" data-owres="l">Loss</button><button class="btn ow-r d" data-owres="d">Draw</button></div>
-        <input list="owHeroes" data-owf="hero" placeholder="Hero" spellcheck="false">
+        ${owHeroPicker('new', owNewHeroes, 'Hero (add more if you switched)')}
         <input list="owMaps" data-owf="map" placeholder="Map" spellcheck="false">
         <select data-owf="role" title="Role you played">${[['', 'Role'], ['tank', 'Tank'], ['damage', 'Damage'], ['support', 'Support']].map(([k, n]) => `<option value="${k}"${k === owLastRole ? ' selected' : ''}>${n}</option>`).join('')}</select>
         <input data-owf="sr" type="number" step="0.1" placeholder="Role % ±" title="Rank progress for this role, e.g. 25 or -18" style="width:96px">
         <input data-owf="note" placeholder="Note (optional)" style="flex:1;min-width:140px">
       </div>
-      <div class="ow-hint">Pick the result to add it. Hero and map are optional, and you can fill them in later in the history below.</div>
+      <div class="ow-hint">Pick the result to add it. Played more than one hero? Add each of them: the match counts for every hero you played. Hero and map are optional, and you can fill them in later in the history below.</div>
     </div>
 
     <div class="panel-grid">
@@ -188,13 +196,13 @@ function renderOverwatch() {
 
     <div class="panel ow-hist">
       <h3>Match history <small>${list.length} in this view</small></h3>
-      ${history.length ? `<div class="ow-hrow head"><span>When</span><span>Result</span><span>Hero</span><span>Map</span><span>Role</span><span>%</span><span>Note</span><span></span></div>` + history.map((m) => `
+      ${history.length ? `<div class="ow-hrow head"><span>When</span><span>Result</span><span>Heroes</span><span>Map</span><span>Role</span><span>%</span><span>Note</span><span></span></div>` + history.map((m) => `
         <div class="ow-hrow${!m.hero || !m.map ? ' missing' : ''}" data-owid="${esc(m.id)}">
           <span class="ow-when">${owDate(m.t)}${m.auto ? ' <em title="Noticed from your stats">auto</em>' : ''}</span>
           <select data-owset="r"><option value="w"${m.r === 'w' ? ' selected' : ''}>Win</option><option value="l"${m.r === 'l' ? ' selected' : ''}>Loss</option><option value="d"${m.r === 'd' ? ' selected' : ''}>Draw</option></select>
-          <input list="owHeroes" data-owset="hero" value="${esc(m.hero || '')}" placeholder="hero?" spellcheck="false">
+          ${owHeroPicker(m.id, OW.heroesOf(m), 'hero?')}
           <input list="owMaps" data-owset="map" value="${esc(m.map || '')}" placeholder="map?" spellcheck="false">
-          <select data-owset="role">${[['', '–'], ['tank', 'Tank'], ['damage', 'Damage'], ['support', 'Support']].map(([k, n]) => `<option value="${k}"${k === (m.role || OW.roleOf(m.hero)) ? ' selected' : ''}>${n}</option>`).join('')}</select>
+          <select data-owset="role">${[['', '–'], ['tank', 'Tank'], ['damage', 'Damage'], ['support', 'Support']].map(([k, n]) => `<option value="${k}"${k === (m.role || OW.roleOfAll(OW.heroesOf(m))) ? ' selected' : ''}>${n}</option>`).join('')}</select>
           <input data-owset="sr" type="number" step="0.1" value="${m.sr == null ? '' : m.sr}" placeholder="±">
           <input data-owset="note" value="${esc(m.note || '')}" placeholder="note">
           <button class="mini-btn" data-owdel title="Delete">✕</button>
@@ -219,7 +227,48 @@ async function loadOwCareer() {
     ${(p.heroes || []).map((h) => `<div class="ow-bar"><span class="ow-bar-name">${esc(OW.heroName(h.name))}</span><span class="ow-bar-track"><i class="${owCls(h.winrate)}" style="width:${h.winrate || 0}%"></i></span><span class="ow-bar-val"><b>${h.winrate}%</b> <small>${h.hours}h</small></span></div>`).join('')}</div>`);
 }
 
+// Add or remove heroes in a picker. The form keeps its list until the match is added; a history row saves at once.
+async function owSetHeroes(picker, heroes) {
+  const key = picker.dataset.owpick;
+  heroes = [...new Set(heroes.map((h) => OW.heroName(h.trim())).filter(Boolean))].slice(0, 8);
+  if (key === 'new') {
+    owNewHeroes = heroes;
+    picker.outerHTML = owHeroPicker('new', owNewHeroes, 'Hero (add more if you switched)');
+    const role = OW.roleOfAll(owNewHeroes);
+    const sel = $('[data-owf="role"]', content);
+    if (sel && role) sel.value = role;
+    const box = $('[data-owpick="new"] input', content);
+    if (box) box.focus();
+    return;
+  }
+  const patch = { heroes };
+  const role = OW.roleOfAll(heroes);
+  if (role) patch.role = role;
+  await window.api.matchesUpdate(key, patch);
+  const m = owMatches.find((x) => x.id === key);
+  if (m) Object.assign(m, patch, { hero: heroes[0] || '' });
+  renderOverwatch();
+}
+const owPickedOf = (picker) => $$('.ow-hchip', picker).map((c) => c.firstChild.textContent);
+// What is typed in a picker's box: one hero, or several separated by commas
+const owTyped = (input) => input.value.split(/\s*,\s*/).filter(Boolean);
+
 function initOverwatchUi() {
+  // Picking a name from the list adds it straight away; Enter or a comma adds what you typed
+  content.addEventListener('input', (e) => {
+    const picker = view === 'overwatch' && e.target.closest('[data-owpick]');
+    if (!picker || !e.target.matches('input')) return;
+    const v = e.target.value;
+    if (e.inputType === 'insertReplacementText' || !e.inputType || (OW.roleOf(v) && OW.allHeroes().includes(v)) || /,\s*$/.test(v)) {
+      if (v.trim().replace(/,$/, '')) owSetHeroes(picker, [...owPickedOf(picker), ...owTyped(e.target)]);
+    }
+  });
+  content.addEventListener('keydown', (e) => {
+    const picker = view === 'overwatch' && e.target.closest('[data-owpick]');
+    if (!picker || !e.target.matches('input')) return;
+    if (e.key === 'Enter' && e.target.value.trim()) { e.preventDefault(); owSetHeroes(picker, [...owPickedOf(picker), ...owTyped(e.target)]); }
+    if (e.key === 'Backspace' && !e.target.value) { const list = owPickedOf(picker); if (list.length) { e.preventDefault(); owSetHeroes(picker, list.slice(0, -1)); } }
+  });
   window.api.on('matches:updated', async () => {
     owMatches = (await window.api.matchesList()) || [];
     owLoaded = true;
@@ -230,25 +279,30 @@ function initOverwatchUi() {
     const t = e.target;
     if (t.matches('[data-owperiod]')) { owPeriod = t.value; return renderOverwatch(); }
     if (t.matches('[data-owrole]')) { owRole = t.value; return renderOverwatch(); }
+    const picker = t.closest('[data-owpick]');
+    if (picker && t.matches('input') && t.value.trim()) return owSetHeroes(picker, [...owPickedOf(picker), ...owTyped(t)]);
     const row = t.closest('[data-owid]');
     if (row && t.dataset.owset) {
       const key = t.dataset.owset;
       const patch = { [key]: t.value };
-      if (key === 'hero' && OW.roleOf(t.value)) patch.role = OW.roleOf(t.value);
       await window.api.matchesUpdate(row.dataset.owid, patch);
       const m = owMatches.find((x) => x.id === row.dataset.owid);
       if (m) Object.assign(m, key === 'sr' ? { sr: t.value === '' ? null : Number(t.value) } : patch);
-      if (['r', 'hero', 'map', 'sr', 'role'].includes(key)) renderOverwatch();
+      if (['r', 'map', 'sr', 'role'].includes(key)) renderOverwatch();
     }
   });
   content.addEventListener('click', async (e) => {
     if (view !== 'overwatch') return;
+    const un = e.target.closest('[data-owunpick]');
+    if (un) { const picker = un.closest('[data-owpick]'); return owSetHeroes(picker, owPickedOf(picker).filter((h) => h !== un.dataset.owunpick)); }
     const res = e.target.closest('[data-owres]');
     if (res) {
       const val = (k) => ($(`[data-owf="${k}"]`, content) || {}).value || '';
-      const hero = val('hero').trim();
+      const box = $('[data-owpick="new"] input', content);
+      const heroes = [...new Set([...owNewHeroes, ...(box ? owTyped(box) : []).map((h) => OW.heroName(h))])]; // a name still in the box counts too
       owLastRole = val('role');
-      await window.api.matchesAdd({ r: res.dataset.owres, hero, map: val('map').trim(), role: OW.roleOf(hero) || owLastRole, sr: val('sr') === '' ? null : Number(val('sr')), note: val('note').trim() });
+      await window.api.matchesAdd({ r: res.dataset.owres, heroes, map: val('map').trim(), role: OW.roleOfAll(heroes) || owLastRole, sr: val('sr') === '' ? null : Number(val('sr')), note: val('note').trim() });
+      owNewHeroes = [];
       owMatches = (await window.api.matchesList()) || [];
       renderOverwatch();
       return;

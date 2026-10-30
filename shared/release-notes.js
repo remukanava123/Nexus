@@ -1,5 +1,12 @@
 // What's new, shown once after Nexus is updated. Add an entry for each version you release (the key is the version in package.json).
 module.exports = {
+  '1.3.1': {
+    title: 'Every Overwatch hero, and more than one per match',
+    items: [
+      ['🦸', 'All the new heroes and maps', 'The Overwatch page knows every hero up to now (Domina, Anran, Emre, Mizuki, Jetpack Cat and the rest of 2026’s heroes, plus Zarya, who was missing) and the new maps such as Neon Junction. Nexus checks for new ones once a week, so next season’s heroes appear by themselves.'],
+      ['🔀', 'Several heroes per match', 'Switched heroes mid-game? Add each one when you log the match (or later in the history). The match counts for every hero you played in “Win rate by hero”.'],
+    ],
+  },
   '1.3.0': {
     title: 'Games that really start, and make it yours',
     items: [

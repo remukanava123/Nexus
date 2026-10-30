@@ -1080,7 +1080,7 @@ body:not(.no-anim) .leave-card { animation: coverFloat 5s ease-in-out infinite a
 
 .ow-log { margin-top: 12px; }
 .ow-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-.ow-form input, .ow-hrow input, .ow-hrow select { height: 34px; padding: 0 10px; border-radius: 8px; background: var(--surface-3); border: 1px solid var(--border); color: var(--text, #fff); font: inherit; font-size: 13px; min-width: 0; }
+.ow-form input, .ow-form select, .ow-hrow input, .ow-hrow select { height: 34px; padding: 0 10px; border-radius: 8px; background: var(--surface-3); border: 1px solid var(--border); color: var(--text, #fff); font: inherit; font-size: 13px; min-width: 0; }
 .ow-form input:focus, .ow-hrow input:focus { outline: none; border-color: var(--accent); }
 .ow-res { display: flex; gap: 6px; }
 .ow-r { height: 34px; padding: 0 16px; font-weight: 700; }
@@ -1384,3 +1384,15 @@ body.plain-nav .sidebar button[data-view="barca"]:hover, body.plain-nav .sidebar
 @media (prefers-reduced-motion: reduce) {
   body:not(.force-anim) *, body:not(.force-anim) *::before, body:not(.force-anim) *::after { animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
 }
+
+/* Overwatch page: several heroes per match, as chips */
+.ow-heroes { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 34px; padding: 3px 4px; border-radius: 8px; background: var(--surface-3); border: 1px solid var(--border); min-width: 0; }
+.ow-heroes:focus-within { border-color: var(--accent); }
+.ow-form .ow-heroes { min-width: 220px; max-width: 420px; }
+.ow-heroes input, .ow-form .ow-heroes input, .ow-hrow .ow-heroes input { flex: 1; min-width: 60px; height: 26px; border: 0; background: none; padding: 0 4px; }
+.ow-hchip { display: inline-flex; align-items: center; gap: 2px; padding: 2px 4px 2px 8px; border-radius: 999px; font-size: 12px; background: rgba(var(--accent-rgb), .18); white-space: nowrap; }
+.ow-hchip[data-role="tank"] { background: rgba(80, 160, 255, .2); }
+.ow-hchip[data-role="damage"] { background: rgba(255, 100, 100, .2); }
+.ow-hchip[data-role="support"] { background: rgba(80, 210, 140, .2); }
+.ow-hchip button { border: 0; background: none; color: var(--muted); padding: 0 4px; font-size: 14px; line-height: 1; }
+.ow-hchip button:hover { color: var(--text); }

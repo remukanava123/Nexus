@@ -22,6 +22,7 @@ const { addProcNames } = require('./src/proc-names');
 const RELEASE_NOTES = require('./shared/release-notes');
 const { createOverlay } = require('./src/overlay');
 const overwatchApi = require('./src/overwatch');
+const OWDATA = require('./shared/ow-data');
 const ps = require('./src/ps');
 
 const IS_LINUX = process.platform === 'linux';
@@ -102,6 +103,8 @@ function init() {
   setInterval(checkAlerts, 30000);
   setTimeout(checkAlerts, 5000);
   setTimeout(() => checkRelease(false), 45000);
+  refreshOwCatalog();
+  setInterval(refreshOwCatalog, 24 * 3600000);
   setInterval(() => checkRelease(false), 12 * 3600000);
   setInterval(() => refreshLifetime().catch(() => {}), 30 * 60000);
   // Explorer normally starts the Run-key and Startup-folder apps at sign-in; with Nexus as the desktop, nobody else will
@@ -654,6 +657,21 @@ async function checkRelease(manual) {
     n.show();
   }
   return res;
+}
+
+// The current Overwatch heroes and maps for the match log, fetched once a week (new heroes arrive every season).
+// The last good list is kept in library.json, so it also works offline.
+async function refreshOwCatalog() {
+  const cached = store.data.owCatalog;
+  if (cached) OWDATA.extend(cached);
+  if (cached && Date.now() - (cached.at || 0) < 7 * 86400000) return;
+  try {
+    const cat = await overwatchApi.fetchCatalog(netFetch);
+    store.data.owCatalog = { at: Date.now(), ...cat };
+    OWDATA.extend(cat);
+    store.save();
+    sendState();
+  } catch { /* offline or the API is down: the built-in lists still work */ }
 }
 
 // Total hours per game (Steam, the Overwatch profile, or typed in) so the UI can show "632h played (43h in Nexus)"
@@ -1250,7 +1268,12 @@ function registerIpc() {
     const str = (v, n) => String(v == null ? '' : v).slice(0, n);
     const out = {};
     if (['w', 'l', 'd'].includes(p.r)) out.r = p.r;
-    if ('hero' in p) out.hero = str(p.hero, 40);
+    // A match can have several heroes (you switched mid-game). `hero` stays the first one, for the overlay and older code.
+    if ('heroes' in p || 'hero' in p) {
+      const list = Array.isArray(p.heroes) ? p.heroes : [p.hero];
+      out.heroes = [...new Set(list.map((h) => str(h, 40).trim()).filter(Boolean))].slice(0, 8);
+      out.hero = out.heroes[0] || '';
+    }
     if ('map' in p) out.map = str(p.map, 40);
     if ('role' in p && ['tank', 'damage', 'support', ''].includes(p.role)) out.role = p.role;
     if ('sr' in p) out.sr = p.sr === '' || p.sr == null ? null : Math.max(-100, Math.min(100, Math.round((Number(p.sr) || 0) * 10) / 10)); // role rank progress in percent
@@ -1278,7 +1301,7 @@ function registerIpc() {
     const m = matchList().find((x) => x.id === id);
     if (!m) return false;
     Object.assign(m, cleanMatch(p || {}));
-    if (m.hero && !m.role) m.role = require('./shared/ow-data').roleOf(m.hero) || m.role;
+    if (m.hero && !m.role) m.role = OWDATA.roleOfAll(OWDATA.heroesOf(m)) || m.role;
     store.save(); overlay.refresh();
     return true;
   });

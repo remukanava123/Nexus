@@ -145,6 +145,7 @@ class Store {
       shell: this.runtime.shellMode === 'shell', // Nexus is the Windows desktop right now
       badgesSeen: badgesSeen || null, // null = never checked yet (the first check just records what is already unlocked)
       sessions: sessions.slice(-1500), gacha, running: this.runtime.running, now: Date.now(),
+      owCatalog: this.data.owCatalog || null, // the current Overwatch heroes and maps, fetched weekly (shared/ow-data.js extend())
     };
   }
 }
