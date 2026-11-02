@@ -25,6 +25,7 @@ const overwatchApi = require('./src/overwatch');
 const OWDATA = require('./shared/ow-data');
 const ps = require('./src/ps');
 const clips = require('./src/clips');
+const gameUpdates = require('./src/game-updates');
 
 const IS_LINUX = process.platform === 'linux';
 const linux = IS_LINUX ? require('./src/linux') : null;
@@ -83,11 +84,13 @@ function init() {
   if (s.startWithWindows) setLoginItem(true); // keeps the startup entry pointing at wherever the .exe lives now
 
   tracker = new Tracker(store, () => watched);
-  overlay = createOverlay({ electron: require('electron'), store, onMatches: () => { if (win && !win.isDestroyed()) win.webContents.send('matches:updated'); }, runningNames: () => (tracker ? [...tracker.active.keys()] : []).map((id) => (items.find((i) => i.id === id) || {}).name || '') });
+  overlay = createOverlay({ electron: require('electron'), store, onMatches: () => { if (win && !win.isDestroyed()) win.webContents.send('matches:updated'); }, runningNames: () => (tracker ? [...tracker.active.keys()] : []).map((id) => (items.find((i) => i.id === id) || {}).name || ''),
+    runningIds: () => (tracker ? [...tracker.active.keys()] : []), nameOf: (id) => (store.data.names || {})[id] || (items.find((i) => i.id === id) || {}).name || id });
   overlay.registerKeys();
   tracker.on('change', () => { overlay.gamesChanged(); });
   tracker.on('change', () => { createTray(); sendState(); }); // rebuild the tray menu so its "Playing: ..." line is current
   tracker.on('end', (id, ms) => {
+    setTimeout(refreshGameUpdates, 8000); // a game that updated itself while it ran loses its "Update" label
     if (ms >= 60000) { sendState(); setTimeout(() => refreshLifetime().catch(() => {}), 20000); } // Steam writes the new total a moment after the game closes
     const nothingRunning = tracker.active.size === 0; // (store.runtime.running is only refreshed after this event)
     // The game Nexus launched (and is waiting behind, or ghosting over) has closed: come back now
@@ -108,6 +111,8 @@ function init() {
   setInterval(refreshOwCatalog, 24 * 3600000);
   setInterval(() => checkRelease(false), 12 * 3600000);
   setInterval(() => refreshLifetime().catch(() => {}), 30 * 60000);
+  setTimeout(refreshGameUpdates, 30000);
+  setInterval(refreshGameUpdates, 2 * 3600000);
   // Explorer normally starts the Run-key and Startup-folder apps at sign-in; with Nexus as the desktop, nobody else will
   if (shellActive && s.shellRunStartup) setTimeout(() => shellMode.runStartupApps(['nexus']), 6000);
 }
@@ -257,7 +262,15 @@ const toggleWindow = () => (win.isVisible() && win.isFocused() ? (cancelLaunchWa
 // screen often doesn't), and has been brought to the front. Games behind their own launcher get the launcher's Start
 // button pressed for them.
 const GAME_WAIT_MS = 150000; // give up waiting for the game window after this long
-const SILENT_GAME_MS = 60000; // a settled game window that never makes a sound (muted, sound off) counts after this long
+// When is a quiet game "ready"? Sound from the game is the surest sign that it has loaded, but plenty of games are
+// silent on their menu (or you muted them), so a window that has settled also counts after a while without it.
+const QUIET_FOCUSED_MS = 5000; // ...sooner when the game has the keyboard or fills its screen, as a loaded game does
+const QUIET_MS = 8000; // ...and later when it sits in the background (a loading window often looks just like the game)
+const SMALL_GAME_MS = 10000; // a smaller window that stays put with no big one coming: the game runs in a window (or a splash you should see)
+const POPUP_DIALOG_MS = 1200; // a dialog box (an error, "install this service?") opened during the launch: show it almost at once
+const POPUP_WINDOW_MS = 8000; // a new launcher or store window (a login, a shader-cache prompt): show it when it stays this long
+// Program names of each store's client: new windows of theirs during a launch can be prompts for you
+const LAUNCHER_HOSTS = { steam: ['steam.exe', 'steamwebhelper.exe'], epic: ['epicgameslauncher.exe', 'epicwebhelper.exe'], ea: ['eadesktop.exe'], hoyoplay: ['hyp.exe'] };
 let launchWait = null; // the wait in progress, if any: { finish(why) }
 let coverForced = false; // true while Nexus went fullscreen just for the cover
 let coverTimer = null;
@@ -453,7 +466,7 @@ function hideAfterLaunch(it) {
     stopPress();
   };
   let phase = '';
-  const setPhase = (p) => { if (p !== phase) { phase = p; sendPhase(p); } };
+  const setPhase = (p, extra) => { if (p !== phase) { phase = p; sendPhase(p, extra); } };
   let pressed = false;
   let pressedAt = 0;
   let launcherHwnd = null;
@@ -508,12 +521,14 @@ function hideAfterLaunch(it) {
   // The launcher needs a person (a login, a prompt, a button Nexus won't press): step aside so they can use it, but keep
   // waiting. The launcher's Start button is still pressed the moment it shows up, and when the game appears Nexus
   // goes behind it as usual. hwnd is the launcher's window, or null for "whatever comes to the front".
-  wait.handoff = (hwnd) => {
+  // A popup (title given) gets its own message; with no title it is the launcher itself.
+  wait.handoff = (hwnd, popupTitle) => {
     if (wait.state !== 'waiting' || wait.handedOff) return;
     wait.handedOff = true;
     armTimeout(15 * 60000); // plenty of time to log in or click through the launcher
-    sendPhase('handoff');
-    try { new Notification({ title: it.name, body: 'The launcher needs you. Nexus has stepped aside and will start the game when the launcher is ready.' }).show(); } catch {}
+    sendPhase('handoff', popupTitle ? { popup: popupTitle } : {});
+    const body = popupTitle ? `“${popupTitle}” needs you. Nexus has stepped aside and will go behind the game when it opens.` : 'The launcher needs you. Nexus has stepped aside and will start the game when the launcher is ready.';
+    try { new Notification({ title: it.name, body }).show(); } catch {}
     if (win && !win.isDestroyed()) win.webContents.send('launch:done', { behind: true });
     stepBehind(hwnd || null, { tidy: endCover });
   };
@@ -580,17 +595,39 @@ function hideAfterLaunch(it) {
     });
   }
 
-  // Sound from the game's own processes while its big window is up. Both have to be true before the cover goes:
-  // the window has settled, and the game has played sound for a moment (two polls, about a second).
+  // When the cover goes: the game's window has settled (same size, place and title for a few seconds), and then either
+  // the game plays sound for a moment (two polls, about a second), or it stays quiet for QUIET_FOCUSED_MS / QUIET_MS.
+  // A smaller window that settles and nothing bigger comes is the game too (windowed, or a splash you should see).
+  // A popup (a dialog box, a new launcher window) means something wants you: Nexus steps aside and keeps waiting.
   let heard = 0;
   let settledAt = 0; // when the window last started counting as settled (0 = not settled right now)
-  wait.watcher = launchWatch.startWatch(spec, (it.readyNames || []).map((n) => n.toLowerCase()), (sample, sound) => {
+  let smallSince = 0; // when a smaller game window last started standing still
+  let popupAt = 0, popupHwnd = '';
+  const fillsScreen = (w) => screen.getAllDisplays().some((d) => [1, d.scaleFactor].some((k) => Math.abs(w.w - d.size.width * k) <= 4 && Math.abs(w.h - d.size.height * k) <= 4));
+  const hosts = [...(LAUNCHER_HOSTS[it.source] || []), ...(it.autoPress && it.autoPress.proc ? [`${String(it.autoPress.proc).toLowerCase()}.exe`] : [])];
+  wait.watcher = launchWatch.startWatch(spec, (it.readyNames || []).map((n) => n.toLowerCase()), (sample, sound, popup) => {
     if (wait.state !== 'waiting') return;
     const now = Date.now();
     const elapsed = now - t0;
     const r = settler.feed(sample, elapsed);
     const big = r.phase === 'settling' || r.phase === 'settled';
-    if (!big) heard = 0; else if (sound > 0) heard++;
+    if (!sample) heard = 0; else if (sound > 0) heard++;
+
+    // A popup while the game's big window isn't up yet. A launcher Nexus presses Start in shows its own window, which
+    // is not a popup; only a dialog box counts for those.
+    const wants = popup && !big && !updating && !wait.handedOff && (popup.dialog || (!it.autoPress && popup.kind !== 'game'));
+    if (!wants) { popupAt = 0; popupHwnd = ''; }
+    else {
+      if (popup.hwnd !== popupHwnd) { popupHwnd = popup.hwnd; popupAt = now; }
+      if (now - popupAt >= (popup.dialog ? POPUP_DIALOG_MS : POPUP_WINDOW_MS)) return wait.handoff(popup.hwnd, popup.title || popup.exe || 'A window');
+    }
+
+    // a smaller game window standing still: windowed games, and splash or loading windows that need you to see them
+    if (sample && !big && r.stable && !sample.iconic && sample.w >= 320 && sample.h >= 180 && !updating && !(it.autoPress && (!pressed || now - pressedAt < 30000))) { // a launcher's own window is not the game
+      smallSince = smallSince || now;
+      if (heard >= 2 && now - smallSince >= 2000) return wait.finish('ready', r.hwnd);
+      if (now - smallSince >= SMALL_GAME_MS) return wait.finish('ready', r.hwnd);
+    } else smallSince = 0;
     if (it.autoPress && !updating && !wait.handedOff) {
       // The launcher needs a person: it shows something we won't press (a login...) for a while, or never shows a button at all.
       // After we pressed Update the button says "Updating 45%" and the like, which is not stuck, so allow 15 minutes then.
@@ -603,12 +640,13 @@ function hideAfterLaunch(it) {
     if (r.phase !== 'settled') settledAt = 0;
     else if (!settledAt) {
       settledAt = now;
-      armTimeout(Math.max(GAME_WAIT_MS - elapsed, SILENT_GAME_MS + 15000)); // leave time to listen for the game
+      armTimeout(Math.max(GAME_WAIT_MS - elapsed, QUIET_MS + 15000)); // leave time to listen for the game
     }
-    if (settledAt && (heard >= 2 || now - settledAt >= SILENT_GAME_MS)) return wait.finish('ready', r.hwnd);
+    const quietFor = sample && (sample.fg || fillsScreen(sample)) ? QUIET_FOCUSED_MS : QUIET_MS;
+    if (settledAt && (heard >= 2 || now - settledAt >= quietFor)) return wait.finish('ready', r.hwnd);
     // "settled" without sound yet: the window is ready, the game may still be loading
-    if (!wait.handedOff && !(it.autoPress && !pressed && !settler.seen)) setPhase(r.phase === 'settled' ? 'listening' : r.phase === 'starting' && pressed ? 'pressed' : r.phase);
-  }, { audio: true });
+    if (!wait.handedOff && !(it.autoPress && !pressed && !settler.seen)) setPhase(r.phase === 'settled' ? 'listening' : r.phase === 'starting' && pressed ? 'pressed' : r.phase, r.phase === 'settled' ? { quietMs: quietFor } : undefined);
+  }, { audio: true, hosts });
 }
 
 // Registers the global shortcut; keeps the old one if the new combination is taken or invalid
@@ -678,6 +716,15 @@ async function refreshOwCatalog() {
 // Total hours per game (Steam, the Overwatch profile, or typed in) so the UI can show "632h played (43h in Nexus)"
 const netFetch = (u, o) => require('electron').net.fetch(u, { ...o, signal: AbortSignal.timeout(12000) });
 let lifetimeBusy = false;
+// Games with an update waiting (shown on their covers). Steam is read from disk; HoYoPlay and Kuro ask their servers.
+async function refreshGameUpdates() {
+  if (!items.length || store.data.settings.checkGameUpdates === false) { if (Object.keys(store.runtime.gameUpdates).length) { store.runtime.gameUpdates = {}; sendState(); } return; }
+  try {
+    const next = await gameUpdates.check(items, async (u) => (await netFetch(u)).json());
+    if (JSON.stringify(next) !== JSON.stringify(store.runtime.gameUpdates)) { store.runtime.gameUpdates = next; sendState(); }
+  } catch {}
+}
+
 async function refreshLifetime() {
   if (lifetimeBusy) return;
   lifetimeBusy = true;
@@ -981,6 +1028,7 @@ function setLoginItem(on) {
 // ---------- Settings side effects ----------
 const zoomFor = (scale) => Math.min(1.5, Math.max(0.7, (Number(scale) || 100) / 100));
 function applySetting(key, value) {
+  if (key === 'checkGameUpdates') refreshGameUpdates();
   if (key === 'startWithWindows') setLoginItem(!!value);
   if (key === 'alwaysOnTop') win.setAlwaysOnTop(!!value, 'screen-saver'); // the highest level: above the taskbar and other pop-ups
   if (key === 'uiScale') win.webContents.setZoomFactor(zoomFor(value));
@@ -1221,7 +1269,7 @@ function registerIpc() {
   // ----- data tools -----
   // What a backup holds (besides the settings), and so what restoring one brings back: everything that is yours, not caches
   const BACKUP_LISTS = ['favorites', 'hidden', 'custom', 'sessions', 'matches', 'badgesSeen'];
-  const BACKUP_MAPS = ['recents', 'covers', 'playtime', 'gacha', 'tags', 'manualHours', 'noAdmin', 'overlayLayout', 'names', 'newsSeen'];
+  const BACKUP_MAPS = ['recents', 'covers', 'playtime', 'gacha', 'tags', 'manualHours', 'noAdmin', 'overlayLayout', 'overlayLayouts', 'names', 'newsSeen'];
   ipcMain.handle('data:export', async () => {
     const res = await dialog.showSaveDialog(win, { title: 'Export Nexus data', defaultPath: 'nexus-backup.json', filters: [{ name: 'JSON', extensions: ['json'] }] });
     if (res.canceled) return false;
@@ -1309,9 +1357,9 @@ function registerIpc() {
   });
   ipcMain.handle('matches:delete', (_e, id) => { store.data.matches = matchList().filter((x) => x.id !== id); store.save(); overlay.refresh(); return true; });
 
-  ipcMain.handle('overlay:edit', () => { overlay.setEditing(true); return true; });
+  ipcMain.handle('overlay:edit', (_e, gameId) => { overlay.setEditing(true, typeof gameId === 'string' ? gameId : null); return true; });
   ipcMain.handle('overlay:resetToday', () => { overlay.resetToday(); return overlay.stats(); });
-  ipcMain.handle('overlay:resetLayout', () => { overlay.resetLayout(); return true; });
+  ipcMain.handle('overlay:resetLayout', (_e, gameId) => { overlay.resetLayout(typeof gameId === 'string' ? gameId : null); return store.public(); });
   ipcMain.handle('overlay:stats', () => overlay.stats());
   ipcMain.handle('data:openFolder', () => shell.openPath(app.getPath('userData')));
   ipcMain.handle('update:status', () => updateInfo());
@@ -1396,6 +1444,10 @@ function registerIpc() {
   ipcMain.handle('clips:list', (_e, force) => clips.list(store.data.settings.clipsFolder, !!force));
   ipcMain.handle('clips:open', (_e, p) => (clips.known(p) ? shell.openPath(p) : 'not a clip'));
   ipcMain.handle('clips:reveal', (_e, p) => { if (clips.known(p)) shell.showItemInFolder(p); });
+  ipcMain.handle('clips:medal', () => clips.openMedal());
+  ipcMain.handle('clips:playable', (e, p, quick) => clips.playable(p, path.join(app.getPath('userData'), 'clip-cache'), {
+    quick: !!quick, onProgress: (pct) => { if (!e.sender.isDestroyed()) e.sender.send('clips:progress', { path: p, pct }); },
+  }));
 
   ipcMain.handle('news:get', async (_e, force) => {
     const cached = feeds.cachedNews();

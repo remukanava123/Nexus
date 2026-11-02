@@ -81,7 +81,8 @@ const SETTINGS_SCHEMA = [
     { key: 'overlayMusic', label: 'Music', desc: 'Cover art, a spinning CD, live sound bars and a progress bar for whatever Windows is playing (Spotify, YouTube, ...)', type: 'toggle', when: (s) => s.overlay },
     { key: 'overlayBars', label: 'Sound bars', desc: 'Bars that move with the sound your PC plays', type: 'toggle', when: (s) => s.overlay && s.overlayMusic },
     { key: 'overlayStats', label: 'Overwatch stats', desc: 'Rank, win rate, KDA and top heroes while Overwatch runs. Your Overwatch career profile must be set to public.', type: 'toggle', when: (s) => s.overlay },
-    { type: 'action', label: 'Edit overlay layout', desc: 'Drag every widget wherever you want on your screen, scroll over one to resize it, and switch widgets on or off. Also Ctrl + Alt + Shift + O.', button: 'Edit…', act: 'editOverlay', when: (s) => s.overlay },
+    { type: 'action', label: 'Edit overlay layout', desc: 'The layout every game uses unless it has its own (below). Drag every widget wherever you want on your screen, scroll over one to resize it, and switch widgets on or off. Also Ctrl + Alt + Shift + O.', button: 'Edit…', act: 'editOverlay', when: (s) => s.overlay },
+    { key: 'overlayGames', label: 'Games with the overlay', desc: 'Untick the games it should stay away from. “Own layout” gives a game its own widgets, places and sizes; the others use the layout above.', type: 'overlayGames', when: (s) => s.overlay },
     { key: 'overlayOpacity', label: 'Overlay brightness', desc: 'Fades the whole overlay', type: 'range', min: 30, max: 100, step: 5, unit: '%', when: (s) => s.overlay },
     { type: 'action', label: 'Competitive record', desc: 'The record and last 5 games of today, from the matches you add on the Overwatch page.', button: 'Clear today', act: 'resetToday', confirm: true, danger: true, when: (s) => s.overlay },
     { key: 'owAutoTrack', label: 'Overwatch: log results automatically (experimental)', desc: 'Notices new competitive wins and losses in your Overwatch stats. The stats site updates with a delay, so it can arrive late; turn it off if you prefer adding them yourself.', type: 'toggle', when: (s) => s.overlay && s.overlayStats },
@@ -130,6 +131,7 @@ const SETTINGS_SCHEMA = [
   { id: 'data', title: 'Data & maintenance', icon: '🧰', rows: [
     { key: 'lowResource', label: 'Low resource mode', desc: 'Turns off graphics acceleration to free some memory. The interface may feel a little less smooth. Takes effect after restarting Nexus; the animation and blur switches under Appearance save even more', type: 'toggle' },
     { key: 'checkUpdates', label: 'Tell me when a new version is out', desc: 'Checks GitHub now and then. Nothing is downloaded until you open the release page', type: 'toggle' },
+    { key: 'checkGameUpdates', label: 'Show which games need an update', desc: 'An "Update" label on the cover. Steam games, Star Rail, Genshin, Zenless Zone Zero and Wuthering Waves; other launchers keep this to themselves', type: 'toggle' },
     { type: 'action', label: 'Check for updates', desc: 'See whether a newer Nexus has been released', button: 'Check now', act: 'checkUpdate' },
     { type: 'action', label: 'Rescan library', desc: 'Look for newly installed games and apps', button: 'Rescan', act: 'rescan' },
     { type: 'action', label: 'Restore hidden items', desc: () => `${prefs.hidden.length} hidden`, button: 'Restore all', act: 'unhide', disabled: () => !prefs.hidden.length },
@@ -161,7 +163,7 @@ const ADVANCED_ROWS = new Set(['radius', 'uiScale', 'density', 'bgStyle', 'bgStr
   'sidebarColors', 'navApps', 'navWeb', 'navFavorites', 'navStats', 'navNews', 'navClips', 'navBarca', 'clipsFolder',
   'groupByLauncher', 'rescanOnShow', 'searchApps', 'searchWeb', 'coverTips', 'coverArt', 'hoursFormat', 'weekStart', 'toastCorner', 'toastSeconds',
   'hideOnLaunch', 'alwaysOnTop', 'startFullscreen', 'startBigScreen', 'launchConfetti', 'gameMode', 'returnFullscreen', 'autoUpdate', 'launchMinWidth', 'launchExtraWait',
-  'overlayBars', 'overlayStats', 'editOverlay', 'overlayOpacity', 'resetToday', 'owAutoTrack',
+  'overlayBars', 'overlayStats', 'editOverlay', 'overlayGames', 'overlayOpacity', 'resetToday', 'owAutoTrack',
   'ambientHum', 'launchFade', 'bootAnimation',
   'breakMinutes', 'previewBadge',
   'showGachaNav', 'notifyStamina', 'notifyReset',
@@ -185,6 +187,7 @@ function settingRow(row, s) {
     case 'select': ctl = `<select data-set="${row.key}">${row.options.map(([val, name]) => `<option value="${esc(val)}"${val === v ? ' selected' : ''}>${esc(name)}</option>`).join('')}</select>`; break;
     case 'range': ctl = `<div class="range-wrap"><input type="range" data-set="${row.key}" min="${row.min}" max="${row.max}" step="${row.step}" value="${v}"><span class="range-val" data-range-for="${row.key}">${v}${row.unit}</span></div>`; break;
     case 'text': ctl = `<input type="text" class="text-in" data-set="${row.key}" value="${esc(v)}" placeholder="Name#1234" spellcheck="false" style="width:200px">`; break;
+    case 'overlayGames': return `<div class="set-row block">${label}${overlayGamesHtml(v || [])}</div>`;
     case 'hotkey': ctl = `<button class="btn hotkey-btn" data-hotkey>${esc(prettyAccel(v))}</button>`; break;
     case 'action': ctl = `<button class="btn${row.danger ? ' danger' : ''}" data-sact="${typeof row.act === 'function' ? row.act() : row.act}"${row.confirm ? ' data-confirm' : ''}${row.disabled && row.disabled() ? ' disabled' : ''}>${esc(typeof row.button === 'function' ? row.button() : row.button)}</button>`; break;
     case 'themes': return `<div class="set-row block">${label}<div class="theme-grid">${Object.entries(THEMES).map(([k, t]) => `<button class="theme-swatch${k === v ? ' active' : ''}" data-theme-pick="${k}" style="--a:${t.bg};--b:${t.s1};--c:${t.s3}"><i></i><span>${t.label}</span></button>`).join('')}</div></div>`;
@@ -286,6 +289,15 @@ function confirmClick(btn, run) {
   btn.dataset.armed = String(setTimeout(() => { delete btn.dataset.armed; btn.textContent = text; btn.classList.remove('armed'); }, 3000));
 }
 
+// Settings → Game overlay → Games: a tick for each game, and a layout of its own if wanted
+function overlayGamesHtml(pick) {
+  const games = items.filter((i) => i.type === 'game').sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
+  if (!games.length) return '<small class="muted-line">No games found yet.</small>';
+  const own = prefs.overlayCustom || [];
+  return `<div class="ovg-list">${games.map((g) => `<div class="ovg-row"><label><input type="checkbox" data-ovgame="${esc(g.id)}"${!pick.length || pick.includes(g.id) ? ' checked' : ''}> ${esc(nameOf(g))}</label>
+    <button class="btn small" data-ovedit="${esc(g.id)}">${own.includes(g.id) ? 'Edit its layout' : 'Own layout…'}</button>${own.includes(g.id) ? `<button class="btn small" data-ovreset="${esc(g.id)}" title="Use the layout every game uses">Use default</button>` : ''}</div>`).join('')}</div>`;
+}
+
 const SETTING_ACTIONS = {
   rescan: async (b) => { b.textContent = 'Scanning…'; await refresh(true); toast('Library refreshed'); renderSettings(); },
   checkUpdate: async (b) => {
@@ -344,6 +356,10 @@ function initSettingsUi() {
     if (ac) { await saveSetting('accent', ac.dataset.accentPick); return render(); }
     const hk = t.closest('[data-hotkey]');
     if (hk) return recordHotkey(hk);
+    const ove = t.closest('[data-ovedit]');
+    if (ove) return window.api.overlayEdit(ove.dataset.ovedit);
+    const ovr = t.closest('[data-ovreset]');
+    if (ovr) { prefs = await window.api.overlayResetLayout(ovr.dataset.ovreset); return render(); }
     const act = t.closest('[data-sact]');
     if (act && !act.disabled) {
       const run = () => SETTING_ACTIONS[act.dataset.sact](act);
@@ -364,6 +380,12 @@ function initSettingsUi() {
   });
   content.addEventListener('change', async (e) => {
     const t = e.target;
+    if (view === 'settings' && t.matches('[data-ovgame]')) {
+      // every game ticked is saved as "all games", so games added later get the overlay too
+      const boxes = $$('[data-ovgame]', content), ids = boxes.filter((b) => b.checked).map((b) => b.dataset.ovgame);
+      if (!ids.length) { t.checked = true; return toast('Keep at least one game, or switch the overlay off above'); }
+      return saveSetting('overlayGames', ids.length === boxes.length ? [] : ids);
+    }
     if (view !== 'settings' || !t.matches('[data-set]') || t.matches('button')) return;
     const key = t.dataset.set;
     await saveSetting(key, t.type === 'range' ? Number(t.value) : t.value);

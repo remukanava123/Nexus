@@ -6,16 +6,19 @@ const pickerOpen = () => !pickerEl().hidden;
 function pickerPool() {
   let pool = items.filter((i) => i.type === 'game' && !prefs.hidden.includes(i.id) && !picker.excluded.has(i.id));
   const f = picker.filter;
-  if (f === 'unplayed') pool = pool.filter((i) => playSeconds(i.id) < 60 && !prefs.recents[i.id]);
+  if (f === 'unplayed') pool = pool.filter((i) => realSeconds(i.id) < 60 && !prefs.recents[i.id]);
   else if (f === 'favorites') pool = pool.filter((i) => isFav(i.id));
-  else if (f === 'short') pool = pool.filter((i) => playSeconds(i.id) < 5 * 3600);
+  else if (f === 'short') pool = pool.filter((i) => realSeconds(i.id) < 5 * 3600);
   else if (f.startsWith('src:')) pool = pool.filter((i) => i.source === f.slice(4));
   return pool;
 }
 
-// Games you've played less get a better chance (when "fair" is on)
+// Games you've played less get a better chance (when "fair" is on). It counts your real total (Steam's hours and the
+// like, not only what Nexus saw), and the chance falls quickly: a game you never played is 3 times as likely as one with
+// 2 hours, 21 times as likely as one with 20 hours, and a 500-hour favourite hardly ever comes up.
+const pickWeight = (g) => (picker.fair ? 1 / (1 + realSeconds(g.id) / 3600) : 1);
 function weightedPick(pool) {
-  const w = pool.map((g) => (picker.fair ? 1 / (1 + playSeconds(g.id) / 7200) : 1));
+  const w = pool.map(pickWeight);
   let r = Math.random() * w.reduce((a, b) => a + b, 0);
   for (let i = 0; i < pool.length; i++) { r -= w[i]; if (r <= 0) return pool[i]; }
   return pool[pool.length - 1];

@@ -76,6 +76,15 @@ function cardMetaHtml(it) {
   return '';
 }
 
+// An update waiting for a game (main.js refreshGameUpdates): { needs, local, remote, source, downloading }
+const updateOf = (id) => (prefs.gameUpdates || {})[id] || null;
+function updateTip(id) {
+  const u = updateOf(id);
+  if (!u) return '';
+  if (u.local && u.remote) return `Update available: version ${u.local} → ${u.remote}. It installs when you press Play.`;
+  return u.downloading ? 'Steam is downloading an update' : 'Steam has an update waiting. It installs when you press Play.';
+}
+
 function gameCard(it, meta = '') {
   const art = it.cover
     ? `<img class="art" src="${esc(it.cover)}" data-fallback="${esc(it.coverFallback || '')}" alt="" loading="lazy"><template>${placeholder(it)}</template>`
@@ -88,6 +97,7 @@ function gameCard(it, meta = '') {
         <span class="badge">${SOURCES[it.source] || ''}</span>
         ${isFav(it.id) ? `<span class="fav-dot">${STAR}</span>` : ''}
         ${isRunning(it.id) ? '<span class="run-badge"><i class="live-dot"></i>PLAYING</span>' : ''}
+        ${!isRunning(it.id) && updateOf(it.id) ? `<span class="upd-badge" title="${esc(updateTip(it.id))}">UPDATE</span>` : ''}
         <div class="overlay"><div class="play" title="Play">${PLAY}</div></div>
       </div>
       <div class="title">${esc(nameOf(it))}</div>
@@ -231,6 +241,9 @@ function renderGames() {
     list.forEach((g) => (groups[g.source] = groups[g.source] || []).push(g));
     body = Object.keys(SOURCES).filter((x) => groups[x]).map((x) => section(`${SOURCES[x]} · ${groups[x].length}`, games(groups[x]))).join('');
   } else body = `<div class="section">${games(list)}</div>`;
+  // games with an update waiting get their own row at the top, so you can start the download before you want to play
+  const needs = list.filter((g) => updateOf(g.id));
+  if (needs.length && list.length > needs.length) body = section(`Needs an update · ${needs.length}`, games(needs)) + body;
   content.innerHTML = `
     <div class="page-head"><h1 class="page-title">Games</h1>
       <div class="page-tools"><label>Sort <select data-gsort>${[['name', 'Name'], ['recent', 'Recently played'], ['played', 'Most played'], ['source', 'Launcher']].map(([k, n]) => `<option value="${k}"${s.gamesSort === k ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
@@ -454,7 +467,7 @@ function toast(msg, error = false) {
 // 'launch:done' that the window is about to fade), and only then is the window faded out.
 let leaveTimer, tipTimer, statusTimer;
 let launchInfo = { phase: 'starting', at: 0 }; // latest word from the main process about the game that is starting
-window.api.on('launch:phase', (p) => { launchInfo = { phase: p.phase, at: p.phase === 'starting' ? Date.now() : launchInfo.at }; paintLeave(); });
+window.api.on('launch:phase', (p) => { launchInfo = { phase: p.phase, at: p.phase === 'starting' ? Date.now() : launchInfo.at, popup: p.popup || '', quietMs: p.quietMs || 0 }; paintLeave(); });
 
 // While the game or its launcher is installing an update: { title, pct (0..1 or null), line } from the main process, or null
 let updateInfo = null;
@@ -472,13 +485,13 @@ function paintLeave() {
     starting: elapsed < 20000 ? 'Starting up…' : 'Waiting for the game to open… it may be updating, you can hide Nexus now',
     launcher: 'The launcher is open. Nexus will start the game for you…',
     pressed: 'Start pressed. Waiting for the game…',
-    handoff: 'The launcher needs you (an update or a login). Nexus is stepping aside.',
+    handoff: launchInfo.popup ? `“${launchInfo.popup}” needs you. Nexus is stepping aside.` : 'The launcher needs you (an update or a login). Nexus is stepping aside.',
     window: 'A window opened (a launcher or anti-cheat?). Waiting for the game itself…',
     settling: 'Almost there…',
     listening: 'The game is open. Waiting to hear it, so Nexus knows it has loaded…',
     ready: 'Here we go!',
   }[phase] || 'Starting up…';
-  hint.textContent = phase === 'listening' ? "Nexus fades as soon as the game plays sound (or after a minute if it stays silent)" : 'Esc hides Nexus right away';
+  hint.textContent = phase === 'listening' ? `Nexus fades as soon as the game plays sound (or in ${Math.round((launchInfo.quietMs || 20000) / 1000)} seconds if it stays quiet)` : 'Esc hides Nexus right away';
   bar.classList.remove('indet');
   bar.style.width = `${Math.round((LEAVE_BASE[phase] || 0.1) * 100)}%`;
   if (updateInfo && phase !== 'ready' && phase !== 'handoff') {

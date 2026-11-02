@@ -55,7 +55,8 @@ Nexus is an Electron app: one **main process** (`main.js`, runs in the backgroun
 | `icons.js`, `extract-icons.ps1` | Pull app icons out of programs. |
 | `store-apps.ps1` | Lists Microsoft Store apps (Roblox, Minecraft, Game Pass). |
 | `feeds.js` | Game news and the Barça page data. |
-| `clips.js` | Medal clips and screenshots: finds the Medal folder and lists `Clips\<game>` and `Screenshots\<game>` with their thumbnails. |
+| `clips.js` | Medal clips and screenshots: finds the Medal folder and lists `Clips\<game>` and `Screenshots\<game>` with their thumbnails. Makes copies Chromium can show, with Medal's own ffmpeg: HEVC converted to H.264 (on the GPU when it can), extra audio tracks dropped. Kept in `clip-cache`, 2 GB at most. |
+| `game-updates.js` | Which games have an update waiting: Steam's manifests, HoYoPlay's and Kuro's current versions against the installed ones. |
 | `overwatch.js` | Overwatch career stats from the public stats site. |
 | `overlay.js`, `overlay-preload.js` | The in-game overlay window. |
 | `media.js` | Reads the currently playing song for the overlay. |

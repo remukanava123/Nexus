@@ -98,28 +98,19 @@ setInterval(() => {
   $('.t1', musicEl).textContent = m.dur > 0 ? fmt(m.dur) : '';
 }, 250);
 
-// bars: the PC's own sound output (loopback), analysed with an FFT
-let analyser = null, data = null, fake = false;
-(async function startAudio() {
-  try {
-    const stream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
-    stream.getVideoTracks().forEach((t) => t.stop());
-    const ctx = new AudioContext();
-    analyser = ctx.createAnalyser();
-    analyser.fftSize = 128; analyser.smoothingTimeConstant = 0.75;
-    ctx.createMediaStreamSource(new MediaStream(stream.getAudioTracks())).connect(analyser);
-    data = new Uint8Array(analyser.frequencyBinCount);
-  } catch { fake = true; }
-})();
+// bars: 16 frequency bands of the music app's own sound, from Nexus (src/overlay.js syncBars), about 30 a second.
+// Without them (Windows can't capture one app, or nothing is coming) the bars just bob along while music plays.
+let bands = null, bandsAt = 0;
+window.ov.on('bands', (b) => { bands = Array.isArray(b) ? b : null; bandsAt = Date.now(); });
 const level = new Array(N).fill(0);
 function frame(t) {
   requestAnimationFrame(frame);
   const m = editing && !media.ok ? SAMPLE_MEDIA : media;
   if (!m.ok || !cfg.bars || !W.music.el.classList.contains('show')) return;
-  if (analyser) analyser.getByteFrequencyData(data);
+  const live = bands && media.ok && Date.now() - bandsAt < 600;
   for (let i = 0; i < N; i++) {
     let v;
-    if (analyser && !fake && media.ok) { const idx = Math.floor(Math.pow(i / N, 1.6) * (data.length * 0.75)) + 1; v = data[idx] / 255; }
+    if (live) { const x = (i / Math.max(1, N - 1)) * (bands.length - 1), j = Math.floor(x), f = x - j; v = Math.min(1, ((bands[j] || 0) * (1 - f) + (bands[j + 1] || 0) * f) * 1.25); }
     else v = m.playing ? 0.25 + 0.5 * Math.abs(Math.sin(t / 260 + i * 0.7)) * Math.abs(Math.sin(t / 900 + i)) : 0;
     level[i] += (v - level[i]) * 0.4;
     barEls[i].style.height = `${Math.max(3, level[i] * 44)}px`;
@@ -196,6 +187,8 @@ window.ov.on('state', (s) => { state = s; paintRecord(); paintGain(); paintTime(
 window.ov.on('media', (m) => { if (m.thumb !== undefined) { thumb = m.thumb; if (!thumb) coverUrl = ''; } media = m; paintMusic(); place(); });
 window.ov.on('cover', (u) => { coverUrl = u; paintMusic(); });
 window.ov.on('ow', (p) => { owData = p; paintOw(); place(); });
+let editFor = ''; // the game whose own layout is being edited ('' = the layout for every game)
+window.ov.on('editFor', (n) => { editFor = n || ''; renderBar(); });
 window.ov.on('edit', (on) => { editing = !!on; document.body.classList.toggle('edit', editing); if (!editing) selected = ''; paintAll(); });
 window.ov.on('toast', (t) => { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('on'), 1800); });
 
@@ -242,6 +235,7 @@ function renderBar() {
     ${Object.entries(W).map(([id, w]) => `<label><input type="checkbox" data-on="${id}" ${getL(id).on ? 'checked' : ''}> ${esc(w.label)}</label>`).join('')}
     <span class="hint">${sel ? `${esc(W[selected].label)}: ` : 'Click a widget. '}</span>
     ${sel ? `<label>Size <input type="range" data-s min="0.4" max="3" step="0.05" value="${sel.s}"></label><label>Opacity <input type="range" data-o min="0.1" max="1" step="0.05" value="${sel.o}"></label>` : ''}
+    <span class="hint"><b>${editFor ? `Layout for ${esc(editFor)}` : 'Layout for every game'}</b></span>
     <button data-reset>Reset layout</button><button class="primary" data-done>Done</button>
     <span class="hint">Drag a widget to move it, scroll over it to resize. Esc or Done to finish.</span>`;
 }

@@ -3,14 +3,15 @@
 const ps = require('./ps');
 
 // Prints one line per poll for the biggest visible window belonging to the game:
-//   W|hwnd|left|top|width|height|foreground(0/1)|minimised(0/1)|sound|title        or  N|sound  when there is none yet
+//   W|hwnd|left|top|width|height|foreground(0/1)|minimised(0/1)|sound|popup|title   or  N|sound|popup  when there is none yet
+// popup is a window that opened since the launch and may want the user (see NXWatch.Popup), or empty.
 // sound is how loud the game's own processes are right now (0..1), or 0 when not asked for (NX_AUDIO).
 // Elevated games hide their path from us, so for those it falls back to matching the process name. The work is done by
 // NXWatch in src/ps.js (one pass over the windows per poll).
 const watchScript = () => `
 $ErrorActionPreference = 'SilentlyContinue'
 ${ps.loader()}
-$w = New-Object NXWatch -ArgumentList "$env:NX_DIRS", "$env:NX_EXES", "$env:NX_NAMES"
+$w = New-Object NXWatch -ArgumentList "$env:NX_DIRS", "$env:NX_EXES", "$env:NX_NAMES", "$env:NX_HOSTS", ([int]$env:NX_ME)
 $audio = $env:NX_AUDIO -eq '1'
 $ms = if ($env:NX_INTERVAL) { [int]$env:NX_INTERVAL } else { 600 }
 $out = [Console]::Out
@@ -19,15 +20,25 @@ while ($true) {
   Start-Sleep -Milliseconds $ms
 }`;
 
-// -> { sample: the window (or null when there is none), sound: how loud the game is (0..1) }
+// "hwnd;w;h;dialog;kind;exe;title" -> { hwnd, w, h, dialog, kind: 'game' | 'launcher' | 'new', exe, title }, or null
+const POPUP_KINDS = { 1: 'game', 2: 'launcher', 3: 'new' };
+function parsePopup(s) {
+  if (!s) return null;
+  const [hwnd, w, h, dlg, kind, exe, ...title] = s.split(';');
+  if (!/^\d+$/.test(hwnd)) return null;
+  return { hwnd, w: +w, h: +h, dialog: dlg === '1', kind: POPUP_KINDS[kind] || 'other', exe: exe || '', title: title.join(';').trim() };
+}
+
+// -> { sample: the window (or null when there is none), sound: how loud the game is (0..1), popup }
 function parseLine(line) {
   const parts = String(line || '').split('|');
-  if (parts[0] === 'N') return { sample: null, sound: Number(parts[1]) || 0 };
-  if (parts[0] !== 'W') return { sample: null, sound: 0 };
-  const [, hwnd, left, top, w, h, fg, ic, snd, ...title] = parts;
+  if (parts[0] === 'N') return { sample: null, sound: Number(parts[1]) || 0, popup: parsePopup(parts[2]) };
+  if (parts[0] !== 'W') return { sample: null, sound: 0, popup: null };
+  const [, hwnd, left, top, w, h, fg, ic, snd, pop, ...title] = parts;
   return {
     sample: { hwnd, left: +left, top: +top, w: +w, h: +h, fg: fg === '1', iconic: ic === '1', title: title.join('|').trim() },
     sound: Number(snd) || 0,
+    popup: parsePopup(pop),
   };
 }
 
@@ -39,7 +50,7 @@ class Settler {
     this.key = null; this.stableSince = 0; this.titleChanges = 0; this.lastTitle = null; this.hwnd = null; this.seen = false;
   }
 
-  // Returns { phase: 'starting' | 'window' | 'settling' | 'settled', hwnd }
+  // Returns { phase: 'starting' | 'window' | 'settling' | 'settled', hwnd, stable }. stable: unchanged for settleMs, whatever its size.
   feed(sample, t) {
     if (!sample) { this.key = null; return { phase: this.seen ? 'window' : 'starting', hwnd: null }; }
     this.seen = true;
@@ -50,19 +61,19 @@ class Settler {
     const key = `${sample.hwnd}|${sample.left}|${sample.top}|${sample.w}|${sample.h}|${sample.iconic}|${title}`;
     if (key !== this.key) { this.key = key; this.stableSince = t; }
     const big = !sample.iconic && sample.w >= this.minW && sample.h >= this.minH;
-    if (!big) return { phase: 'window', hwnd: sample.hwnd };
-    if (t - this.stableSince >= this.settleMs) return { phase: 'settled', hwnd: sample.hwnd };
-    return { phase: 'settling', hwnd: sample.hwnd };
+    const stable = t - this.stableSince >= this.settleMs;
+    if (!big) return { phase: 'window', hwnd: sample.hwnd, stable };
+    return { phase: stable ? 'settled' : 'settling', hwnd: sample.hwnd, stable };
   }
 }
 
-// Starts the poller. onSample(sample or null, sound 0..1) every ~0.6s. With { audio: true } it also measures the
-// game's sound (otherwise sound is always 0). Returns { stop() }.
-function startWatch(spec, extraNames, onSample, { audio = false, interval = 600 } = {}) {
+// Starts the poller. onSample(sample or null, sound 0..1, popup or null) every ~0.6s. With { audio: true } it also measures the
+// game's sound (otherwise sound is always 0). hosts: the launcher's program names, whose new windows count as popups. Returns { stop() }.
+function startWatch(spec, extraNames, onSample, { audio = false, interval = 600, hosts = [] } = {}) {
   if (process.platform === 'linux') return require('./linux').startWatch(spec, extraNames, onSample);
   const child = ps.run(watchScript(), {
-    env: { NX_DIRS: spec.dirs.join('|'), NX_EXES: spec.exes.join('|'), NX_NAMES: [...spec.names, ...extraNames].join('|'), NX_AUDIO: audio ? '1' : '0', NX_INTERVAL: String(interval) },
-    onLine: (line) => { const { sample, sound } = parseLine(line); onSample(sample, sound); },
+    env: { NX_DIRS: spec.dirs.join('|'), NX_EXES: spec.exes.join('|'), NX_NAMES: [...spec.names, ...extraNames].join('|'), NX_AUDIO: audio ? '1' : '0', NX_INTERVAL: String(interval), NX_HOSTS: hosts.join('|'), NX_ME: String(process.pid) },
+    onLine: (line) => { const { sample, sound, popup } = parseLine(line); onSample(sample, sound, popup); },
   });
   return { stop() { try { child.kill(); } catch {} } };
 }

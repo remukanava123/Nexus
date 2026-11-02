@@ -1,5 +1,19 @@
 // What's new, shown once after Nexus is updated. Add an entry for each version you release (the key is the version in package.json).
 module.exports = {
+  '1.3.3': {
+    title: 'A clip player, and launches that never get stuck',
+    items: [
+      ['▶️', 'Clips play in Nexus', 'Click a clip to watch it right here, with pause, seeking, volume, speed, repeat, frame steps and full screen. The ⋯ button opens it in Medal or your own player instead.'],
+      ['💬', 'Popups get through', 'If a game or launcher opens a dialog box or a login while starting, Nexus steps aside straight away so you can answer it, then goes behind the game.'],
+      ['🤫', 'Quiet and windowed games', 'Games without sound now start in seconds instead of a minute, and games in a smaller window are recognised too.'],
+      ['📸', 'A shutter for Clips', 'The Clips button has its own sound.'],
+      ['🎞️', 'Newer clips play', 'Clips Medal saved in HEVC, or with your microphone on its own track, no longer play sound over a black picture. The first time, Nexus makes a copy that plays (a few seconds on your graphics card); after that they open at once.'],
+      ['⬇️', 'Games that need an update', 'An Update label on the cover, and a row of them at the top of Games: Steam games, Star Rail, Genshin, ZZZ and Wuthering Waves.'],
+      ['🎛️', 'The overlay, game by game', 'Choose which games get the overlay, and give any game its own widgets and layout. Settings → Game overlay.'],
+      ['🎶', 'Bars that follow your music', 'The overlay’s sound bars listen only to the app playing music, not the game.'],
+      ['🎲', 'Fairer picks', '“Favour games I’ve played less” now counts all your hours (Steam’s too), so your 500-hour games stop coming up.'],
+    ],
+  },
   '1.3.2': {
     title: 'Your clips, and news for the games you play',
     items: [

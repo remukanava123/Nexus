@@ -3,6 +3,7 @@
 // demand with Ctrl+Alt+O, and made interactive in "edit mode" so the widgets can be dragged and resized.
 const path = require('path');
 const media = require('./media');
+const ps = require('./ps');
 const overwatch = require('./overwatch');
 const OW = require('../shared/ow-data');
 
@@ -11,11 +12,21 @@ const isOw = (g) => /overwatch/i.test(g || '');
 const sameGame = (a, b) => a === b || (isOw(a) && isOw(b));
 const startOfToday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); };
 
-function createOverlay({ electron, store, runningNames, onMatches }) {
-  const { BrowserWindow, screen, ipcMain, desktopCapturer, net, globalShortcut } = electron;
+// runningIds: the library ids of the games running now (runningNames: their names). nameOf(id): a game's name.
+function createOverlay({ electron, store, runningNames, runningIds = () => [], nameOf = (id) => id, onMatches }) {
+  const { BrowserWindow, screen, ipcMain, net, globalShortcut } = electron;
   let win = null, mediaJob = null, lastMedia = null, lastThumb = '', lastCover = '', manual = null, editing = false;
   let owTimer = null, owFor = '', owData = null, idleTimer = null;
   let sessionGame = '', sessionStart = 0;
+  let editFor = null; // the game whose layout edit mode changes (null: the layout every other game uses)
+  let layoutGame = undefined; // the game whose layout the overlay is showing
+
+  // Settings → Game overlay → Games: the games it shows on (none picked = every game), and their own layouts if they have one
+  const allowed = (id) => { const pick = store.data.settings.overlayGames || []; return !pick.length || pick.includes(id); };
+  const activeIds = () => runningIds().filter(allowed);
+  const layouts = () => (store.data.overlayLayouts = store.data.overlayLayouts || {});
+  const layoutFor = (id) => (id && layouts()[id]) || store.data.overlayLayout || {};
+  const shownGame = () => (editing ? editFor : activeIds()[0] || null);
   const coverCache = new Map();
   let coverKey = '', coverTimer = null;
 
@@ -101,10 +112,6 @@ function createOverlay({ electron, store, runningNames, onMatches }) {
     win.setIgnoreMouseEvents(true);
     win.setAlwaysOnTop(true, 'screen-saver');
     win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    // the bars listen to what the PC is playing (system audio loopback)
-    win.webContents.session.setDisplayMediaRequestHandler((_req, cb) => {
-      desktopCapturer.getSources({ types: ['screen'] }).then((src) => cb({ video: src[0], audio: 'loopback' })).catch(() => cb({}));
-    });
     win.loadFile(path.join(__dirname, '..', 'renderer', 'overlay.html'));
     win.on('closed', () => { win = null; });
     return win;
@@ -113,7 +120,9 @@ function createOverlay({ electron, store, runningNames, onMatches }) {
   function sendAll() {
     const sendNow = (ch, d) => { if (win && !win.isDestroyed()) win.webContents.send(ch, d); }; // the page just said it is ready
     sendNow('cfg', cfg());
-    sendNow('layout', store.data.overlayLayout || {});
+    layoutGame = shownGame();
+    sendNow('layout', layoutFor(layoutGame));
+    sendNow('editFor', editFor ? nameOf(editFor) : '');
     sendNow('state', stateFor());
     if (lastMedia) sendNow('media', { ...lastMedia, thumb: lastThumb });
     sendNow('ow', owData);
@@ -128,7 +137,8 @@ function createOverlay({ electron, store, runningNames, onMatches }) {
       if (!/^[a-z0-9]{1,20}$/.test(id) || !w) continue;
       clean[id] = { on: !!w.on, x: Math.round(Number(w.x) || 0), y: Math.round(Number(w.y) || 0), s: Math.min(3, Math.max(0.4, Number(w.s) || 1)), o: Math.min(1, Math.max(0.1, Number(w.o) || 1)) };
     }
-    store.data.overlayLayout = clean;
+    // edit mode saves the game it was opened for; the default layout otherwise
+    if (editing && editFor) layouts()[editFor] = clean; else store.data.overlayLayout = clean;
     store.save();
   });
   ipcMain.on('overlay:edit-done', () => setEditing(false));
@@ -143,9 +153,38 @@ function createOverlay({ electron, store, runningNames, onMatches }) {
       lastMedia = m;
       send('media', m);
       watchCover(m);
+      syncBars(m);
     });
   }
-  function stopMedia() { if (mediaJob) { mediaJob.stop(); mediaJob = null; } lastMedia = null; clearTimeout(coverTimer); }
+  function stopMedia() { if (mediaJob) { mediaJob.stop(); mediaJob = null; } lastMedia = null; clearTimeout(coverTimer); stopBars(); }
+
+  // ----- sound bars: the music app's own sound only (NXA.Cap in src/ps.js), never the game's or the rest of the PC's -----
+  // One helper per music app, restarted when the playing app changes. Where Windows can't capture one app (older than
+  // Windows 10 2004) the page falls back to bars that just follow play/pause.
+  let barsJob = null, barsApp = '', barsFailed = { app: '', at: 0 };
+  function syncBars(m) {
+    const s = store.data.settings;
+    const app = s.overlayBars && s.overlayMusic && m && m.ok && m.app && process.platform === 'win32' ? m.app : '';
+    if (app === barsApp || (app && barsFailed.app === app && Date.now() - barsFailed.at < 30000)) return;
+    stopBars();
+    barsApp = app;
+    if (!app) return;
+    const job = {};
+    const child = ps.run(`${ps.loader()}
+$p = [NXA.Cap]::FindPid($env:NX_APP)
+if ($p -le 0) { [Console]::Out.WriteLine('X|no process') } else { [NXA.Cap]::Run($p) }`, {
+      env: { NX_APP: app },
+      onLine: (l) => {
+        if (barsJob !== job) return;
+        if (l.startsWith('B|')) send('bands', l.slice(2).split(',').map(Number));
+        else if (l.startsWith('X|')) { barsFailed = { app, at: Date.now() }; send('bands', null); }
+      },
+      onExit: () => { if (barsJob === job) { barsJob = null; barsApp = ''; } },
+    });
+    job.stop = () => { try { child.kill(); } catch {} };
+    barsJob = job;
+  }
+  function stopBars() { if (barsJob) { barsJob.stop(); barsJob = null; } barsApp = ''; send('bands', null); }
 
   // No picture from the player (browsers often give none): look the song up. Tidied title first, e.g. "Artist - Song (Official Video)".
   function cleanTerm(m) {
@@ -210,7 +249,9 @@ function createOverlay({ electron, store, runningNames, onMatches }) {
     const names = runningNames();
     if (names[0] && names[0] !== sessionGame) { sessionGame = names[0]; sessionStart = Date.now(); }
     if (!names.length) sessionStart = 0;
-    const want = editing || (s.overlay && (manual !== null ? manual : names.length > 0));
+    const want = editing || (s.overlay && (manual !== null ? manual : activeIds().length > 0));
+    const g = shownGame();
+    if (g !== layoutGame) { layoutGame = g; send('layout', layoutFor(g)); }
     if (!s.overlay || !s.overlayMusic) stopMedia(); else if (want) startMedia();
     syncOw(names);
     clearTimeout(idleTimer); idleTimer = null;
@@ -238,8 +279,10 @@ function createOverlay({ electron, store, runningNames, onMatches }) {
   function gamesChanged() { manual = null; update(); }
 
   // Edit mode: the overlay catches the mouse so widgets can be dragged (wheel = size) and shows sample data
-  function setEditing(on) {
+  function setEditing(on, gameId) {
     editing = !!on;
+    if (editing) editFor = gameId || null;
+    send('editFor', editing && editFor ? nameOf(editFor) : '');
     const w = ensureWindow();
     w.setIgnoreMouseEvents(!editing);
     w.setFocusable(editing);
@@ -256,7 +299,12 @@ function createOverlay({ electron, store, runningNames, onMatches }) {
 
   return {
     refresh: pushState, update, toggle, gamesChanged, registerKeys, addMatch, undoMatch, resetToday, setEditing,
-    resetLayout() { store.data.overlayLayout = {}; store.save(); send('layout', {}); },
+    // a game's own layout goes back to the default one; with no game, the default goes back to how it started
+    resetLayout(gameId) {
+      if (gameId) delete layouts()[gameId]; else store.data.overlayLayout = {};
+      store.save();
+      layoutGame = shownGame(); send('layout', layoutFor(layoutGame));
+    },
     stats() { const t = stateFor(); const w = t.today.filter((m) => m.r === 'w').length, l = t.today.filter((m) => m.r === 'l').length; return { game: t.game, w, l }; },
     stop() { stopMedia(); if (owTimer) clearInterval(owTimer); if (win && !win.isDestroyed()) win.destroy(); },
   };

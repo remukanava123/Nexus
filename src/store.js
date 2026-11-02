@@ -29,9 +29,9 @@ const DEFAULT_SETTINGS = {
   hideOnLaunch: true, closeToTray: true, startWithWindows: false, alwaysOnTop: false, hotkey: 'Control+Alt+Space',
   launchConfetti: false, startBigScreen: false, startFullscreen: false,
   launchCover: true, launchExtraWait: 2, launchMinWidth: 1600, shellRunStartup: true, coverTips: true, coverArt: true,
-  lowResource: false, checkUpdates: true,
+  lowResource: false, checkUpdates: true, checkGameUpdates: true,
   lifetimeHours: true, welcomeDone: false, hoverSounds: true,
-  overlay: true, overlayMusic: true, overlayBars: true, overlayStats: true, owTag: '', owAutoTrack: false, overlayOpacity: 100,
+  overlay: true, overlayMusic: true, overlayBars: true, overlayStats: true, owTag: '', owAutoTrack: false, overlayGames: [], overlayOpacity: 100,
   autoUpdate: true, returnAfterGame: true, returnFullscreen: true, gameMode: 'behind',
   // Sound & motion
   sounds: true, soundVolume: 40, ambientHum: true, bootAnimation: true, launchFade: true,
@@ -59,7 +59,7 @@ class Store {
   constructor(dir) {
     this.file = path.join(dir, 'library.json');
     this.lastGood = path.join(dir, 'library.last-good.json'); // a copy of the last library that loaded fine
-    this.runtime = { running: {}, lifetime: {} }; // not saved: which games are open right now, and total hours from Steam and the like
+    this.runtime = { running: {}, lifetime: {}, gameUpdates: {} }; // not saved: which games are open right now, and total hours from Steam and the like
     this.saveTimer = null;
     let data = readJson(this.file);
     if (data === null) {
@@ -147,6 +147,8 @@ class Store {
       shell: this.runtime.shellMode === 'shell', // Nexus is the Windows desktop right now
       badgesSeen: badgesSeen || null, // null = never checked yet (the first check just records what is already unlocked)
       sessions: sessions.slice(-1500), gacha, running: this.runtime.running, now: Date.now(),
+      overlayCustom: Object.keys(this.data.overlayLayouts || {}), // games whose overlay has a layout of its own
+      gameUpdates: this.runtime.gameUpdates || {}, // { id: { needs, local, remote, source } }: games with an update waiting (src/game-updates.js)
       owCatalog: this.data.owCatalog || null, // the current Overwatch heroes and maps, fetched weekly (shared/ow-data.js extend())
     };
   }

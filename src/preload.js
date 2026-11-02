@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-const EVENTS = ['library:updated', 'focus-search', 'state:update', 'navigate', 'launch:done', 'launch:phase', 'launch:update', 'barca:updated', 'matches:updated', 'news:updated', 'update:available', 'update:progress'];
+const EVENTS = ['library:updated', 'focus-search', 'state:update', 'navigate', 'launch:done', 'launch:phase', 'launch:update', 'barca:updated', 'matches:updated', 'news:updated', 'update:available', 'update:progress', 'clips:progress'];
 
 contextBridge.exposeInMainWorld('api', {
   platform: process.platform,
@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('api', {
   clipsList: (force) => ipcRenderer.invoke('clips:list', force),
   clipOpen: (p) => ipcRenderer.invoke('clips:open', p),
   clipReveal: (p) => ipcRenderer.invoke('clips:reveal', p),
+  clipMedal: () => ipcRenderer.invoke('clips:medal'),
+  clipPlayable: (p, quick) => ipcRenderer.invoke('clips:playable', p, quick),
   newsSeen: (id) => ipcRenderer.invoke('news:seen', id),
   badgesSeen: (quiet, fresh, total) => ipcRenderer.invoke('badges:seen', quiet, fresh, total),
   previewBadge: () => ipcRenderer.invoke('badges:preview'),
@@ -46,9 +48,9 @@ contextBridge.exposeInMainWorld('api', {
   matchesAdd: (p) => ipcRenderer.invoke('matches:add', p),
   matchesUpdate: (id, p) => ipcRenderer.invoke('matches:update', id, p),
   matchesDelete: (id) => ipcRenderer.invoke('matches:delete', id),
-  overlayEdit: () => ipcRenderer.invoke('overlay:edit'),
+  overlayEdit: (gameId) => ipcRenderer.invoke('overlay:edit', gameId),
   overlayResetToday: () => ipcRenderer.invoke('overlay:resetToday'),
-  overlayResetLayout: () => ipcRenderer.invoke('overlay:resetLayout'),
+  overlayResetLayout: (gameId) => ipcRenderer.invoke('overlay:resetLayout', gameId),
   overlayStats: () => ipcRenderer.invoke('overlay:stats'),
   openDataFolder: () => ipcRenderer.invoke('data:openFolder'),
   checkUpdate: () => ipcRenderer.invoke('update:check'),

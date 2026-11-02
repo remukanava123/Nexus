@@ -89,7 +89,7 @@ const sfx = (() => {
 
 // Hovering an animated sidebar button plays its own short sound (only while Nexus is the window you are using).
 // The files in assets/sounds are already trimmed and level-matched; this only sets how loud they are overall.
-const HOVER_FILES = { home: 'home', games: 'games', apps: 'apps', web: 'web', favorites: 'favorites', stats: 'stats', barca: 'barca', news: 'news', gacha: 'gacha', settings: 'settings' }; // Overwatch has no sound
+const HOVER_FILES = { home: 'home', games: 'games', apps: 'apps', web: 'web', favorites: 'favorites', stats: 'stats', barca: 'barca', news: 'news', clips: 'clips', gacha: 'gacha', settings: 'settings' }; // Overwatch has no sound
 const HOVER_LEVEL = 0.3; // a quiet background touch: 1 would be full volume
 const hoverAudio = {};
 function playHover(view) {

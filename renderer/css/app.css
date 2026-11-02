@@ -1418,9 +1418,57 @@ body.plain-nav .sidebar button[data-view="barca"]:hover, body.plain-nav .sidebar
 .clip-meta { display: flex; flex-direction: column; gap: 2px; padding: 9px 12px 10px; }
 .clip-meta b { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .clip-meta small { color: var(--muted); font-size: 12px; }
-.clip-folder { position: absolute; top: 8px; right: 8px; padding: 4px 7px; border-radius: 8px; border: 0; background: rgba(0, 0, 0, .55); font-size: 13px; opacity: 0; transition: opacity .15s; cursor: pointer; }
-.clip-card:hover .clip-folder { opacity: 1; }
+.clip-more { position: absolute; top: 8px; right: 8px; width: 30px; height: 26px; border-radius: 8px; border: 0; background: rgba(0, 0, 0, .6); color: #fff; font-size: 16px; line-height: 1; opacity: 0; transition: opacity .15s; cursor: pointer; }
+.clip-card:hover .clip-more, .clip-more:focus-visible { opacity: 1; }
 .detail-clips { margin-bottom: 26px; }
 .detail-clips .dn-head { display: flex; align-items: center; gap: 10px; }
 .detail-clips .dn-head small { color: var(--muted); }
 .detail-clips .dn-head .btn { margin-left: auto; padding: 5px 12px; font-size: 12px; }
+
+/* Clip player */
+.cp { position: fixed; inset: 0; z-index: 85; background: #000; display: flex; flex-direction: column; outline: none; animation: fade .15s; user-select: none; }
+.cp[hidden] { display: none; }
+.cp-top { position: absolute; top: 0; left: 0; right: 0; z-index: 2; display: flex; align-items: center; gap: 8px; padding: 14px 18px 30px; background: linear-gradient(rgba(0, 0, 0, .75), transparent); transition: opacity .25s; }
+.cp-top > div { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.cp-top b { font-size: 15px; color: #fff; }
+.cp-top small { color: rgba(255, 255, 255, .65); font-size: 12px; }
+.cp-stage { flex: 1; min-height: 0; display: grid; place-items: center; position: relative; }
+.cp-stage video, .cp-stage img { max-width: 100%; max-height: 100%; width: 100%; height: 100%; object-fit: contain; }
+.cp-bar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; padding: 26px 18px 12px; background: linear-gradient(transparent, rgba(0, 0, 0, .8)); transition: opacity .25s; }
+.cp-row { display: flex; align-items: center; gap: 4px; margin-top: 6px; }
+.cp-gap { flex: 1; }
+.cp-time { margin-left: 10px; color: #fff; font-size: 13px; font-variant-numeric: tabular-nums; }
+.cp-btn { min-width: 36px; height: 34px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: #fff; font-size: 15px; cursor: pointer; }
+.cp-btn:hover { background: rgba(255, 255, 255, .14); }
+.cp-btn.on { color: var(--accent); }
+.cp-speed { height: 30px; padding: 0 6px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .2); background: rgba(0, 0, 0, .5); color: #fff; font: inherit; font-size: 13px; }
+.cp input[type="range"] { -webkit-appearance: none; appearance: none; height: 5px; border-radius: 3px; cursor: pointer; background: linear-gradient(90deg, var(--accent) var(--p, 0%), rgba(255, 255, 255, .25) var(--p, 0%)); }
+.cp input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 3px rgba(0, 0, 0, .25); }
+.cp-seek { display: block; width: 100%; }
+.cp-seek:hover { height: 7px; }
+.cp-vol { width: 90px; margin-right: 6px; }
+.cp-nav { position: absolute; top: 50%; z-index: 2; width: 48px; height: 72px; margin-top: -36px; border: 0; border-radius: 12px; background: rgba(0, 0, 0, .45); color: #fff; font-size: 34px; cursor: pointer; transition: opacity .25s, background .15s; }
+.cp-nav:hover { background: rgba(255, 255, 255, .15); }
+.cp-nav:disabled { opacity: 0 !important; pointer-events: none; }
+.cp-nav.prev { left: 14px; } .cp-nav.next { right: 14px; }
+.cp-flash { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 10px 18px; border-radius: 12px; background: rgba(0, 0, 0, .65); color: #fff; font-size: 18px; font-weight: 600; opacity: 0; pointer-events: none; }
+.cp-flash.show { animation: cpFlash .7s ease-out; }
+@keyframes cpFlash { 0% { opacity: 1; } 60% { opacity: 1; } 100% { opacity: 0; } }
+.cp.idle { cursor: none; }
+.cp.idle .cp-top, .cp.idle .cp-bar, .cp.idle .cp-nav { opacity: 0; }
+/* the ⋯ menu and messages also show over the clip player */
+body:has(.cp:not([hidden])) .menu { z-index: 95; }
+body:has(.cp:not([hidden])) .toast { z-index: 96; bottom: 110px; }
+
+/* A game with an update waiting (main.js refreshGameUpdates) */
+.upd-badge { position: absolute; left: 8px; bottom: 8px; padding: 3px 8px; border-radius: 6px; background: rgba(10, 12, 16, .82); color: #ffb547; font-size: 10px; font-weight: 700; letter-spacing: .6px; box-shadow: inset 0 0 0 1px rgba(255, 181, 71, .45); }
+.upd-badge::before { content: "⬇ "; }
+
+/* Settings → Game overlay → Games */
+.ovg-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 6px 18px; margin-top: 10px; max-height: 320px; overflow-y: auto; }
+.ovg-row { display: flex; align-items: center; gap: 8px; min-height: 32px; }
+.ovg-row label { flex: 1; display: flex; align-items: center; gap: 8px; cursor: pointer; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ovg-row .btn.small { padding: 4px 10px; font-size: 12px; }
+.cp-prep { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 12px; color: #fff; font-size: 15px; background: rgba(0, 0, 0, .6); }
+.cp-prep[hidden] { display: none; }
+.cp-prep span { font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 600; }
