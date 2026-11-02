@@ -3,6 +3,7 @@
 let newsData = null;       // { byGame: { id: { items, banners, version } }, fresh: { id: n }, freshTotal }
 let newsLoading = false;
 let newsFilter = 'all';    // all | updates | <game id>
+let newsPicking = false;  // the "Choose games" list is open
 let newsSnapshot = {};     // which items were new when you opened the page, so their "NEW" tags stay for this visit
 
 async function loadNews(force) {
@@ -28,7 +29,9 @@ window.api.on('news:updated', (d) => {
 });
 setInterval(() => { if (view === 'news' && !document.hidden) loadNews(true); }, 15 * 60000);
 
-const newsGameItems = () => items.filter((i) => i.type === 'game' && newsData && newsData.byGame[i.id] && newsData.byGame[i.id].items.length);
+const newsAllGames = () => items.filter((i) => i.type === 'game' && newsData && newsData.byGame[i.id] && newsData.byGame[i.id].items.length);
+// The games picked under "Choose games" (all of them until you pick some)
+const newsGameItems = () => { const pick = prefs.settings.newsGames || []; const all = newsAllGames(); return pick.length ? all.filter((g) => pick.includes(g.id)) : all; };
 
 function newsItemHtml(n, opts = {}) {
   const isNew = !!(newsSnapshot[opts.gameId] || {})[n.id] || (opts.live && n.isNew);
@@ -46,7 +49,7 @@ function renderNews() {
     return;
   }
   const games = newsGameItems();
-  if (!games.length) {
+  if (!newsAllGames().length) {
     content.innerHTML = `<h1 class="page-title">News</h1>
       <div class="empty"><strong>No news yet</strong>Nexus finds news for Steam games, Wuthering Waves, Honkai: Star Rail, Genshin Impact and Zenless Zone Zero.<br>
         <button class="btn" data-nsync style="margin-top:14px">Check now</button></div>`;
@@ -87,10 +90,25 @@ function renderNews() {
 
   content.innerHTML = `
     <div class="b-head"><div><h1 class="page-title">News</h1><p class="page-sub">Patch notes and announcements for your games${newsData.updated ? ` · updated ${timeAgo(newsData.updated)}` : ''}</p></div>
-      <button class="btn" data-nsync title="Check for news now">↻ Refresh</button></div>
-    <div class="chips">${chips}</div>
+      <div class="b-tools"><button class="btn" data-npick title="Pick the games you want news for">${newsPicking ? 'Done' : 'Choose games'}</button><button class="btn" data-nsync title="Check for news now">↻ Refresh</button></div></div>
+    ${newsPicking ? newsPickerHtml() : `<div class="chips">${chips}</div>`}
     ${bannerStrip}
     <div class="nw-grid">${cards || '<div class="b-empty">Nothing to show for this filter</div>'}</div>`;
+}
+
+// Tick the games you follow; none ticked means all of them
+function newsPickerHtml() {
+  const pick = prefs.settings.newsGames || [];
+  const all = newsAllGames().slice().sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
+  return `<div class="nw-pick"><div class="nw-pick-head">Show news for <button class="chip" data-npickall>All games</button><button class="chip" data-npicknone>Clear</button></div>
+    <div class="nw-pick-list">${all.map((g) => `<label class="nw-pick-row"><input type="checkbox" data-npickid="${esc(g.id)}"${!pick.length || pick.includes(g.id) ? ' checked' : ''}> ${esc(nameOf(g))}</label>`).join('')}</div>
+    <small>Untick games you don't play. Their news still shows on their own page.</small></div>`;
+}
+async function setNewsGames(ids) {
+  // every game ticked is saved as "all", so games added later show up too
+  prefs = await window.api.setSetting('newsGames', ids.length === newsAllGames().length ? [] : ids);
+  if (newsFilter !== 'all' && newsFilter !== 'updates' && ids.length && !ids.includes(newsFilter)) newsFilter = 'all';
+  render();
 }
 
 // ----- On a game's page -----
@@ -130,5 +148,13 @@ function initNews() {
     const f = e.target.closest('[data-nfilter]');
     if (f) { newsFilter = f.dataset.nfilter; render(); return; }
     if (e.target.closest('[data-nsync]')) loadNews(true);
+    if (e.target.closest('[data-npick]')) { newsPicking = !newsPicking; render(); }
+    if (e.target.closest('[data-npickall]')) setNewsGames(newsAllGames().map((g) => g.id));
+    if (e.target.closest('[data-npicknone]')) { $$('[data-npickid]', content).forEach((c) => { c.checked = false; }); }
+  });
+  content.addEventListener('change', (e) => {
+    if (view !== 'news' || !e.target.matches('[data-npickid]')) return;
+    const ids = $$('[data-npickid]', content).filter((c) => c.checked).map((c) => c.dataset.npickid);
+    if (ids.length) setNewsGames(ids);
   });
 }

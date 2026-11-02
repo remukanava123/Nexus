@@ -150,7 +150,7 @@ function paintRecord() {
 }
 
 // ---------- rank progress today, per role (percent) ----------
-const ROLE_NAMES = [['tank', 'Tank'], ['damage', 'Damage'], ['support', 'Support'], ['', 'Other']];
+const ROLE_NAMES = [['tank', 'Tank'], ['damage', 'Damage'], ['support', 'Support'], ['open', 'Open queue'], ['stadium', 'Stadium'], ['', 'Other']];
 const pctTxt = (v) => (v > 0 ? '+' : '') + (Math.round(v * 10) / 10) + '%';
 function paintGain() {
   const list = editing && !(state.gains || []).length ? SAMPLE_GAINS : state.gains || [];

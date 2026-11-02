@@ -64,22 +64,27 @@ function createOverlay({ electron, store, runningNames, onMatches }) {
   // from the last 2 hours that has no hero yet (so the two don't count twice), otherwise as a new match.
   function noticeResults(before, after) {
     const g = gameNow() || 'Overwatch 2';
-    const claim = (r, hero) => {
+    const claim = (r, heroes) => {
       const cutoff = Date.now() - 2 * 3600000;
       const list = matches();
       for (let i = list.length - 1; i >= 0 && list[i].t >= cutoff; i--) {
         const m = list[i];
-        if (sameGame(m.game, g) && m.r === r && !m.hero && !m.auto) { m.hero = hero; m.role = OW.roleOf(hero) || m.role; m.merged = true; return true; }
+        if (sameGame(m.game, g) && m.r === r && !m.hero && !m.auto) { m.heroes = heroes; m.hero = heroes[0] || ''; m.role = OW.roleOfAll(heroes) || m.role; m.merged = true; return true; }
       }
       return false;
     };
+    // Overwatch counts a game for every hero played in it, so the per-hero counts say who you played, and the overall counts say how many games there were.
+    // One new win means every hero whose wins went up was in that game; with several, each hero goes into as many of them as its count rose.
     let any = false;
-    for (const [key, h] of Object.entries(after.heroes || {})) {
-      const b = (before.heroes || {})[key] || { won: 0, lost: 0 };
-      const hero = OW.heroName(key), role = OW.roleOf(hero);
-      const add = (r, n) => { for (let i = 0; i < n && i < 10; i++) { any = true; if (!claim(r, hero)) addMatch(r, true, { hero, role }); } };
-      add('w', h.won - b.won);
-      add('l', h.lost - b.lost);
+    for (const [r, field] of [['w', 'won'], ['l', 'lost']]) {
+      const games = Math.min(10, Math.max(0, (after[field] || 0) - (before[field] || 0)));
+      if (!games) continue;
+      const slots = Array.from({ length: games }, () => []);
+      for (const [key, h] of Object.entries(after.heroes || {})) {
+        const n = (h[field] || 0) - (((before.heroes || {})[key] || {})[field] || 0);
+        for (let i = 0; i < Math.min(n, games); i++) slots[i].push(OW.heroName(key));
+      }
+      for (const heroes of slots) { any = true; if (!claim(r, heroes)) addMatch(r, true, { heroes, hero: heroes[0] || '', role: OW.roleOfAll(heroes) }); }
     }
     if (any) { store.save(); pushState(); changed(); }
   }

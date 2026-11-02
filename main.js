@@ -24,6 +24,7 @@ const { createOverlay } = require('./src/overlay');
 const overwatchApi = require('./src/overwatch');
 const OWDATA = require('./shared/ow-data');
 const ps = require('./src/ps');
+const clips = require('./src/clips');
 
 const IS_LINUX = process.platform === 'linux';
 const linux = IS_LINUX ? require('./src/linux') : null;
@@ -1140,6 +1141,7 @@ function registerIpc() {
   // ----- settings -----
   ipcMain.handle('setting:set', (_e, key, value) => {
     if (!(key in SETTING_DEFAULTS) || typeof value !== typeof SETTING_DEFAULTS[key]) return store.public(); // ignore unknown keys / wrong types
+    if (Array.isArray(SETTING_DEFAULTS[key])) { if (!Array.isArray(value)) return store.public(); value = value.filter((v) => typeof v === 'string').slice(0, 500); }
     store.data.settings[key] = value;
     store.save();
     applySetting(key, value);
@@ -1275,7 +1277,7 @@ function registerIpc() {
       out.hero = out.heroes[0] || '';
     }
     if ('map' in p) out.map = str(p.map, 40);
-    if ('role' in p && ['tank', 'damage', 'support', ''].includes(p.role)) out.role = p.role;
+    if ('role' in p && ['tank', 'damage', 'support', 'open', 'stadium', ''].includes(p.role)) out.role = p.role;
     if ('sr' in p) out.sr = p.sr === '' || p.sr == null ? null : Math.max(-100, Math.min(100, Math.round((Number(p.sr) || 0) * 10) / 10)); // role rank progress in percent
     if ('note' in p) out.note = str(p.note, 200);
     if ('t' in p && Number.isFinite(Number(p.t))) out.t = Number(p.t);
@@ -1389,6 +1391,11 @@ function registerIpc() {
     }
     return (await fresh) || cached || null;
   });
+
+  // Medal clips and screenshots (src/clips.js); only files from the last scan can be opened
+  ipcMain.handle('clips:list', (_e, force) => clips.list(store.data.settings.clipsFolder, !!force));
+  ipcMain.handle('clips:open', (_e, p) => (clips.known(p) ? shell.openPath(p) : 'not a clip'));
+  ipcMain.handle('clips:reveal', (_e, p) => { if (clips.known(p)) shell.showItemInFolder(p); });
 
   ipcMain.handle('news:get', async (_e, force) => {
     const cached = feeds.cachedNews();

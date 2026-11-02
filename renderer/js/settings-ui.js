@@ -31,6 +31,7 @@ const SETTINGS_SCHEMA = [
     { key: 'navFavorites', label: 'Show Favourites', type: 'toggle' },
     { key: 'navStats', label: 'Show Stats', type: 'toggle' },
     { key: 'navNews', label: 'Show News', type: 'toggle' },
+    { key: 'navClips', label: 'Show Clips', type: 'toggle' },
     { key: 'navBarca', label: 'Show Barça', type: 'toggle' },
   ] },
   { id: 'home', title: 'Home page', icon: '🏠', rows: [
@@ -111,6 +112,7 @@ const SETTINGS_SCHEMA = [
     { key: 'hoursFormat', label: 'Hours look like', type: 'select', options: [['short', '12.5h'], ['long', '12h 30m']] },
     { key: 'weekStart', label: 'Week starts on', desc: 'For the days-of-the-week chart', type: 'select', options: [['monday', 'Monday'], ['sunday', 'Sunday']] },
     { key: 'lifetimeHours', label: 'Show hours from before Nexus', desc: 'Total hours come from Steam on this PC and your Overwatch profile. For any other game, type the number in on its page', type: 'toggle' },
+    { key: 'clipsFolder', label: 'Medal clip folder', desc: 'Leave empty to use the folder set in Medal. Clips show on the Clips page and on each game’s page', type: 'text' },
     { key: 'owTag', label: 'Your Overwatch BattleTag', desc: 'For example Name#1234. Loads your career hours and the overlay stats (your profile must be public)', type: 'text' },
     { key: 'badgePopups', label: 'Advancement popups', desc: 'A Steam-style popup in the corner when you unlock an advancement, even while a game is open', type: 'toggle' },
     { key: 'toastCorner', label: 'Popup corner', type: 'select', options: [['bottom-right', 'Bottom right'], ['top-right', 'Top right'], ['bottom-left', 'Bottom left'], ['top-left', 'Top left']], when: (s) => s.badgePopups },
@@ -156,7 +158,7 @@ if (window.api.platform === 'linux') {
 // Rows for fine-tuning. Everything else is on the Basic tab; the Home page and Desktop sections are advanced as a whole.
 const ADVANCED_ROWS = new Set(['radius', 'uiScale', 'density', 'bgStyle', 'bgStrength', 'blur', 'showBadges', 'showTitles',
   'coverShape', 'hoverEffect', 'cardGap', 'showFavStar', 'showRunningBadge',
-  'sidebarColors', 'navApps', 'navWeb', 'navFavorites', 'navStats', 'navNews', 'navBarca',
+  'sidebarColors', 'navApps', 'navWeb', 'navFavorites', 'navStats', 'navNews', 'navClips', 'navBarca', 'clipsFolder',
   'groupByLauncher', 'rescanOnShow', 'searchApps', 'searchWeb', 'coverTips', 'coverArt', 'hoursFormat', 'weekStart', 'toastCorner', 'toastSeconds',
   'hideOnLaunch', 'alwaysOnTop', 'startFullscreen', 'startBigScreen', 'launchConfetti', 'gameMode', 'returnFullscreen', 'autoUpdate', 'launchMinWidth', 'launchExtraWait',
   'overlayBars', 'overlayStats', 'editOverlay', 'overlayOpacity', 'resetToday', 'owAutoTrack',

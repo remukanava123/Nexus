@@ -70,7 +70,7 @@ function heroHtml() {
     main = `<div class="bh-comp"><span class="comp-dot" style="background:${next.compColor}"></span>${esc(next.comp)}${next.round && !/^\d{4}/.test(next.round) && next.round !== next.comp ? ` · ${esc(next.round)}` : ''}</div>
       <div class="bh-teams">
         <div class="bh-team">${crest(next.home, 'xl')}<b>${esc(next.home.name)}</b></div>
-        <div class="bh-mid">${live ? `<div class="bh-score">${esc(next.home.score)}<i>–</i>${esc(next.away.score)}</div><div class="live-tag big">LIVE ${esc(next.clock || '')}</div>` : '<div class="bh-vs">VS</div>'}</div>
+        <div class="bh-mid">${live ? `<div class="bh-score">${esc(next.home.score)}<i>–</i>${esc(next.away.score)}</div><div class="live-tag live-big">LIVE ${esc(next.clock || '')}</div>` : '<div class="bh-vs">VS</div>'}</div>
         <div class="bh-team">${crest(next.away, 'xl')}<b>${esc(next.away.name)}</b></div>
       </div>
       ${live ? '' : `<div class="bh-count" data-kick="${kick}"><div><b data-k="d">0</b><small>days</small></div><div><b data-k="h">0</b><small>hours</small></div><div><b data-k="m">0</b><small>min</small></div><div><b data-k="s">0</b><small>sec</small></div></div>`}

@@ -2,7 +2,7 @@
 // The lists below are as of October 2026 (from Blizzard's hero gallery via the OverFast API). Nexus also fetches the
 // current lists from OverFast once a week (main.js → OW.extend), so heroes and maps released later show up without an update.
 const OW = (() => {
-  const ROLES = { tank: 'Tank', damage: 'Damage', support: 'Support' };
+  const ROLES = { tank: 'Tank', damage: 'Damage', support: 'Support', open: 'Open queue', stadium: 'Stadium' };
   const HEROES = {
     tank: ['D.Mon', 'D.Va', 'Domina', 'Doomfist', 'Hazard', 'Junker Queen', 'Mauga', 'Orisa', 'Ramattra', 'Reinhardt', 'Roadhog', 'Sigma', 'Winston', 'Wrecking Ball', 'Zarya'],
     damage: ['Anran', 'Ashe', 'Bastion', 'Cassidy', 'Echo', 'Emre', 'Freja', 'Genji', 'Hanzo', 'Junkrat', 'Mei', 'Pharah', 'Reaper', 'Shion', 'Sierra', 'Sojourn', 'Soldier: 76', 'Symmetra', 'Torbjörn', 'Tracer', 'Vendetta', 'Venture', 'Widowmaker'],
@@ -39,11 +39,13 @@ const OW = (() => {
       const list = m && Array.isArray(m.heroes) && m.heroes.length ? m.heroes : String((m && m.hero) || '').split(/\s*[,/+&]\s*/);
       return [...new Set(list.map((h) => String(h).trim()).filter(Boolean).map(nameOfHero))];
     },
-    // The role for a match with several heroes: theirs if they all share one, else the first hero's
+    // The role for a match with several heroes: theirs if they all share one; heroes from different roles mean open queue
     roleOfAll: (heroes) => {
       const roles = [...new Set(heroes.map((h) => heroRole[norm(h)]).filter(Boolean))];
-      return roles.length === 1 ? roles[0] : heroRole[norm(heroes[0])] || '';
+      return roles.length === 1 ? roles[0] : roles.length > 1 ? 'open' : '';
     },
+    // Heroes you can pick for a role (all of them for open queue or no role)
+    heroesFor: (role) => (HEROES[role] ? [...HEROES[role]] : Object.values(HEROES).flat().sort((a, b) => a.localeCompare(b))),
     // Adds heroes and maps fetched from OverFast: { heroes: { tank: [...] }, maps: { Control: [...] } }. Known ones stay.
     extend: (cat) => {
       if (!cat) return;

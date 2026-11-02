@@ -10,13 +10,15 @@ const DEFAULT_SITES = [
 ];
 
 const DEFAULT_SETTINGS = {
+  // News: ids of the games picked for the News page (empty = every game)
+  newsGames: [],
   // Appearance
   theme: 'midnight', accent: '#7c5cff', cardSize: 150, radius: 14, density: 'comfortable', uiScale: 100,
   animations: true, blur: true, bgStyle: 'glow', bgStrength: 100, showBadges: true, showTitles: true,
   cardMeta: 'hours', coverShape: 'portrait', hoverEffect: 'lift', cardGap: 18, fontFamily: 'segoe',
   showFavStar: true, showRunningBadge: true,
   // Sidebar
-  sidebarStyle: 'full', sidebarColors: true, navApps: true, navWeb: true, navFavorites: true, navStats: true, navBarca: true, navNews: true,
+  sidebarStyle: 'full', sidebarColors: true, navApps: true, navWeb: true, navFavorites: true, navStats: true, navBarca: true, navNews: true, navClips: true, clipsFolder: '',
   // Home page sections
   greeting: true, homeHero: true, homeGameOfDay: true, homeRecent: true, homeFavorites: true, homeMostPlayed: true,
   homeBacklog: true, homeGacha: true, homeGames: true, homeApps: true, homeWeb: true, rowCount: 12,

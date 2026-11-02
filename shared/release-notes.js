@@ -1,5 +1,15 @@
 // What's new, shown once after Nexus is updated. Add an entry for each version you release (the key is the version in package.json).
 module.exports = {
+  '1.3.2': {
+    title: 'Your clips, and news for the games you play',
+    items: [
+      ['🎬', 'Clips from Medal', 'A new Clips page shows the clips and screenshots you saved with Medal, and each game’s page shows its own. Hover a clip to preview it, click to play it. Hide the page under Settings → Sidebar.'],
+      ['📰', 'Choose your news', 'News → Choose games: untick the games you don’t play and the News page leaves them out.'],
+      ['🎯', 'Open queue and Stadium', 'Overwatch matches can be open queue or Stadium. Pick Tank, Damage or Support and only that role’s heroes can be added.'],
+      ['🤖', 'Auto log keeps every hero', 'Results logged automatically now list every hero you played in the match, not just one.'],
+      ['🐛', 'Fixes', 'The Barça page no longer gets covered by a big red shape while a match is live.'],
+    ],
+  },
   '1.3.1': {
     title: 'Every Overwatch hero, and more than one per match',
     items: [

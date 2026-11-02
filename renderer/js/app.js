@@ -317,7 +317,7 @@ function highlight() {
   if (el) { el.classList.add('selected'); el.scrollIntoView({ block: 'nearest' }); }
 }
 
-const VIEWS = { home: renderHome, games: renderGames, apps: renderApps, web: renderWeb, favorites: renderFavorites, stats: renderStats, barca: renderBarca, news: renderNews, gacha: renderGacha, overwatch: renderOverwatch, settings: renderSettings };
+const VIEWS = { home: renderHome, games: renderGames, apps: renderApps, web: renderWeb, favorites: renderFavorites, stats: renderStats, barca: renderBarca, news: renderNews, clips: renderClips, gacha: renderGacha, overwatch: renderOverwatch, settings: renderSettings };
 
 function render() {
   $$('.sidebar button[data-view]').forEach((b) => b.classList.toggle('active', !query && b.dataset.view === view));
@@ -341,7 +341,7 @@ function updateNav() {
   if (!owShow && view === 'overwatch') view = 'home';
   $('#desktopBtn').hidden = !prefs.shell; // only when Nexus is standing in for the Windows desktop
   // Sidebar entries you switched off (Settings → Sidebar)
-  for (const [v, key] of [['apps', 'navApps'], ['web', 'navWeb'], ['favorites', 'navFavorites'], ['stats', 'navStats'], ['barca', 'navBarca'], ['news', 'navNews']]) {
+  for (const [v, key] of [['apps', 'navApps'], ['web', 'navWeb'], ['favorites', 'navFavorites'], ['stats', 'navStats'], ['barca', 'navBarca'], ['news', 'navNews'], ['clips', 'navClips']]) {
     const off = prefs.settings[key] === false;
     $(`.sidebar [data-view="${v}"]`).hidden = off;
     if (off && view === v) view = 'home';
@@ -640,7 +640,7 @@ function openDetail(id) {
   detail.scrollTop = 0;
   hydrateIcons();
 
-  if (it.type === 'game') showDetailNews(id);
+  if (it.type === 'game') { showDetailNews(id); showDetailClips(it); }
   loadAchievements(it);
   window.api.getInfo(id).then((info) => { if (detailId === id) fillDetail(it, info); })
     .catch(() => { if (detailId === id) fillDetail(it, null); });
@@ -654,6 +654,7 @@ function fillDetail(it, info) {
   const fact = (label, value) => (value ? `<div class="fact"><small>${label}</small>${value}</div>` : '');
   const list = (a) => (a && a.length ? esc(a.join(', ')) : '');
   body.innerHTML = `
+    <div id="detailClips">${it.type === 'game' ? gameClipsHtml(it) : ''}</div>
     <div id="detailNews">${it.type === 'game' ? gameNewsHtml(it.id) : ''}</div>
     <div id="detailAch">${achCache[it.id] ? achievementsHtml(achCache[it.id]) : ''}</div>
     <div class="detail-about">
@@ -1008,6 +1009,7 @@ document.addEventListener('click', (e) => { if (e.target.closest('.sidebar butto
   initTags();
   initBarca();
   initNews();
+  initClips();
   initSettingsUi();
   initPicker();
   initBigScreen();

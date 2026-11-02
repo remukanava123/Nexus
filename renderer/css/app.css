@@ -348,7 +348,7 @@ body.hide-titles .game .title, body.hide-titles .game .meta { display: none; }
 .page-tools { display: flex; align-items: center; gap: 12px; padding-bottom: 4px; color: var(--muted); font-size: 13px; }
 .page-tools .btn { height: 34px; }
 .mini-check { display: flex; align-items: center; gap: 6px; cursor: pointer; }
-.page-tools select, .set-row select { height: 34px; padding: 0 10px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); font: inherit; outline: 0; }
+.page-tools select, .set-row select, .b-tools select { height: 34px; padding: 0 10px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); font: inherit; outline: 0; }
 select option { background: var(--surface-2); }
 input[type="checkbox"] { accent-color: var(--accent); }
 .empty.small { padding: 18px 0; }
@@ -679,7 +679,7 @@ body.leaving .leave-skip { pointer-events: auto; }
 .res { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; font-size: 11px; font-weight: 700; color: #0b0d12; }
 .res.W { background: #3ddc84; } .res.D { background: #f0c05a; } .res.L { background: #ff6b6b; }
 .live-tag { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: 1px; background: #ff3b4e; color: #fff; animation: livePulse 1.4s infinite; }
-.live-tag.big { padding: 5px 14px; font-size: 13px; }
+.live-tag.live-big { padding: 5px 14px; font-size: 13px; }
 @keyframes livePulse { 0% { box-shadow: 0 0 0 0 rgba(255, 59, 78, .6); } 70% { box-shadow: 0 0 0 10px rgba(255, 59, 78, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 59, 78, 0); } }
 
 /* cards rise in one after another (only while the page is entering or a tab was just switched) */
@@ -1396,3 +1396,31 @@ body.plain-nav .sidebar button[data-view="barca"]:hover, body.plain-nav .sidebar
 .ow-hchip[data-role="support"] { background: rgba(80, 210, 140, .2); }
 .ow-hchip button { border: 0; background: none; color: var(--muted); padding: 0 4px; font-size: 14px; line-height: 1; }
 .ow-hchip button:hover { color: var(--text); }
+
+/* News: choose games */
+.b-tools { display: flex; gap: 8px; align-items: center; }
+.b-tools select { height: 38px; }
+.nw-pick { margin: 6px 0 18px; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius, 14px); background: var(--surface-2); }
+.nw-pick-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-weight: 600; }
+.nw-pick-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px 14px; margin-bottom: 8px; }
+.nw-pick-row { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.nw-pick small { color: var(--muted); }
+
+/* Clips (Medal) */
+.clip-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; margin-top: 14px; }
+.clip-grid.small { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); margin-top: 8px; }
+.clip-card { position: relative; border-radius: var(--radius, 14px); overflow: hidden; background: var(--surface-2); border: 1px solid var(--border); cursor: pointer; transition: transform .15s, box-shadow .15s; }
+.clip-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0, 0, 0, .35); }
+.clip-pic { position: relative; aspect-ratio: 16 / 9; background: var(--surface-3); overflow: hidden; }
+.clip-pic img, .clip-pic video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.clip-play { position: absolute; left: 10px; bottom: 8px; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: rgba(0, 0, 0, .6); color: #fff; font-size: 11px; transition: opacity .15s; }
+.clip-card:hover .clip-play { opacity: 0; }
+.clip-meta { display: flex; flex-direction: column; gap: 2px; padding: 9px 12px 10px; }
+.clip-meta b { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.clip-meta small { color: var(--muted); font-size: 12px; }
+.clip-folder { position: absolute; top: 8px; right: 8px; padding: 4px 7px; border-radius: 8px; border: 0; background: rgba(0, 0, 0, .55); font-size: 13px; opacity: 0; transition: opacity .15s; cursor: pointer; }
+.clip-card:hover .clip-folder { opacity: 1; }
+.detail-clips { margin-bottom: 26px; }
+.detail-clips .dn-head { display: flex; align-items: center; gap: 10px; }
+.detail-clips .dn-head small { color: var(--muted); }
+.detail-clips .dn-head .btn { margin-left: auto; padding: 5px 12px; font-size: 12px; }

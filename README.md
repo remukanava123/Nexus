@@ -14,7 +14,8 @@ A game and app launcher for Windows and Linux (Fedora, Bazzite), built with Elec
 - **Stats and advancements:** charts, per-game stats and over 120 advancements in tiers with rarity, progress bars and a few secret ones, plus a Steam-style popup with a sound when you unlock one.
 - **Welcome guide and update notes:** a short first-run setup, a Basic and an Advanced settings tab, an "Update available" banner on Home that downloads and runs the new installer from your GitHub release (installed copy only; other copies open the download page), and a "What's new" page shown once after you update.
 - **Gacha tools:** daily and weekly reset timers, stamina, banner countdowns and a pull planner for Honkai: Star Rail, Wuthering Waves and Genshin Impact.
-- **News:** patch notes and announcements for your games.
+- **News:** patch notes and announcements for your games. "Choose games" picks which ones the page shows.
+- **Clips:** the clips and screenshots you saved with Medal, on a Clips page and on each game's page. Hover to preview, click to play.
 - **Barça tab:** fixtures, results, tables, squad and news for FC Barcelona (La Liga, Champions League, Copa del Rey, Supercopa).
 - **Launch cover:** while a game starts, Nexus shows a full-screen cover with the game's art, a progress bar and tips, lore and trivia. It only fades once the game window has settled (stopped resizing, steady title) and the game itself is playing sound (its own processes in the Windows volume mixer; a launcher's music doesn't count), then brings the game to the front. A game that stays silent (muted) still counts after a minute.
 - **Always on top while launching:** the cover is fullscreen and sits above the taskbar, pop-ups and any newly opened windows until it fades, and keeps putting itself back on top if something is pushed over it. (Windows' own UAC prompt and system toasts live on a layer no app can cover.) **Hide Nexus now** or Esc always lets you out.
@@ -45,7 +46,7 @@ A game and app launcher for Windows and Linux (Fedora, Bazzite), built with Elec
   - **Look:** themes, accent colour, font, corner roundness, interface size, density, page background and how strong it is, blur.
   - **Covers:** size, shape (tall, square or wide), the space between them, what happens when you point at one (lift, zoom, glow or just an outline), and what shows underneath (hours, when you last played, the launcher, or nothing). The launcher badge, favourite star, "Playing" label and titles can each be hidden.
   - **Names:** right-click any game or app → **Rename…** to show your own name for it. Covers, news and tips still use the real name.
-  - **Sidebar:** icons and names, or a narrow icons-only bar; colourful icons or all in your accent colour; hide Apps, Websites, Favourites, Stats, News or Barça.
+  - **Sidebar:** icons and names, or a narrow icons-only bar; colourful icons or all in your accent colour; hide Apps, Websites, Favourites, Stats, News, Clips or Barça.
   - **Hours:** your real total, only Nexus's hours, or both; shown as "12.5h" or "12h 30m"; weeks starting on Monday or Sunday.
   - **Home page:** each section on or off, and how many games per row.
   - **Search:** whether it also finds apps and websites.

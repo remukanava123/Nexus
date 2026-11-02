@@ -55,6 +55,7 @@ Nexus is an Electron app: one **main process** (`main.js`, runs in the backgroun
 | `icons.js`, `extract-icons.ps1` | Pull app icons out of programs. |
 | `store-apps.ps1` | Lists Microsoft Store apps (Roblox, Minecraft, Game Pass). |
 | `feeds.js` | Game news and the Barça page data. |
+| `clips.js` | Medal clips and screenshots: finds the Medal folder and lists `Clips\<game>` and `Screenshots\<game>` with their thumbnails. |
 | `overwatch.js` | Overwatch career stats from the public stats site. |
 | `overlay.js`, `overlay-preload.js` | The in-game overlay window. |
 | `media.js` | Reads the currently playing song for the overlay. |
@@ -86,6 +87,7 @@ Scripts in `renderer/js/`:
 | `onboarding.js` | The welcome guide (first run) and the "What's new" note (after an update). |
 | `gacha-ui.js` | The gacha helper page. |
 | `ow-ui.js` | The Overwatch match log and statistics page. |
+| `clips-ui.js` | The Clips page and the clips strip on a game's page. |
 | `barca.js`, `news.js` | The Barça page and the news page. |
 | `picker.js` | "What should I play". |
 | `bigscreen.js` | Controller and big-screen mode. |
