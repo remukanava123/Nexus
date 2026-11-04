@@ -149,6 +149,7 @@ class Store {
       sessions: sessions.slice(-1500), gacha, running: this.runtime.running, now: Date.now(),
       overlayCustom: Object.keys(this.data.overlayLayouts || {}), // games whose overlay has a layout of its own
       gameUpdates: this.runtime.gameUpdates || {}, // { id: { needs, local, remote, source } }: games with an update waiting (src/game-updates.js)
+      gachaBanners: this.data.gachaBanners || {}, // { [game]: { at, version, current: [banner], next: [banner] } } (src/gacha-banners.js)
       owCatalog: this.data.owCatalog || null, // the current Overwatch heroes and maps, fetched weekly (shared/ow-data.js extend())
     };
   }

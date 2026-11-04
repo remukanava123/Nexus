@@ -56,8 +56,8 @@ Nexus is an Electron app: one **main process** (`main.js`, runs in the backgroun
 | `store-apps.ps1` | Lists Microsoft Store apps (Roblox, Minecraft, Game Pass). |
 | `feeds.js` | Game news and the Barça page data. |
 | `clips.js` | Medal clips and screenshots: finds the Medal folder and lists `Clips\<game>` and `Screenshots\<game>` with their thumbnails. Makes copies Chromium can show, with Medal's own ffmpeg: HEVC converted to H.264 (on the GPU when it can), extra audio tracks dropped. Kept in `clip-cache`, 2 GB at most. |
-| `game-updates.js` | Which games have an update waiting: Steam's manifests, HoYoPlay's and Kuro's current versions against the installed ones. |
-| `overwatch.js` | Overwatch career stats from the public stats site. |
+| `gacha-banners.js` | The current and next gacha banners: Star Rail and Zenless from ennead.cc's calendar, Genshin and Wuthering Waves from the fandom wikis (banner list page, then each banner's infobox). Refreshed every 3 hours and kept in `library.json` (`gachaBanners`). |
+| `game-updates.js` | Which games have an update waiting: Steam's manifests, Battle.net's `.build.info` against Blizzard's version list, HoYoPlay's and Kuro's current versions against the installed ones. || `overwatch.js` | Overwatch career stats from the public stats site. |
 | `overlay.js`, `overlay-preload.js` | The in-game overlay window. |
 | `media.js` | Reads the currently playing song for the overlay. |
 | `shell-mode.js` | The optional "Nexus as the Windows desktop" setting. |
@@ -86,10 +86,9 @@ Scripts in `renderer/js/`:
 | `advancements.js` | All the advancements (tiers, secret ones, per-game ones) and how they are drawn. |
 | `lifetime-ui.js` | Total hours and Steam achievements on a game's page. |
 | `onboarding.js` | The welcome guide (first run) and the "What's new" note (after an update). |
-| `gacha-ui.js` | The gacha helper page. |
+| `gacha-ui.js` | The gacha helper page: game tabs, current and next banners, stamina and pity, the "good to know" info and links. |
 | `ow-ui.js` | The Overwatch match log and statistics page. |
-| `clips-ui.js` | The Clips page and the clips strip on a game's page. |
-| `barca.js`, `news.js` | The Barça page and the news page. |
+| `clips-ui.js` | The Clips page and the clips strip on a game's page. || `barca.js`, `news.js` | The Barça page and the news page. |
 | `picker.js` | "What should I play". |
 | `bigscreen.js` | Controller and big-screen mode. |
 | `tips.js`, `tips-more.js` | Loading-screen tips and mini challenges. |

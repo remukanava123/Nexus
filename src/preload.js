@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('api', {
   setHotkey: (accel) => ipcRenderer.invoke('hotkey:set', accel),
   resetSettings: () => ipcRenderer.invoke('settings:reset'),
   gacha: (key, op, payload) => ipcRenderer.invoke('gacha:op', key, op, payload),
+  gachaRefresh: () => ipcRenderer.invoke('gacha:refreshBanners'),
 
   hide: () => ipcRenderer.invoke('window:hide'),
   setFullscreen: (on) => ipcRenderer.invoke('window:fullscreen', on),

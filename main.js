@@ -26,7 +26,7 @@ const OWDATA = require('./shared/ow-data');
 const ps = require('./src/ps');
 const clips = require('./src/clips');
 const gameUpdates = require('./src/game-updates');
-
+const gachaBanners = require('./src/gacha-banners');
 const IS_LINUX = process.platform === 'linux';
 const linux = IS_LINUX ? require('./src/linux') : null;
 if (IS_LINUX) {
@@ -113,6 +113,8 @@ function init() {
   setInterval(() => refreshLifetime().catch(() => {}), 30 * 60000);
   setTimeout(refreshGameUpdates, 30000);
   setInterval(refreshGameUpdates, 2 * 3600000);
+  setTimeout(() => refreshGachaBanners(), 12000);
+  setInterval(() => refreshGachaBanners(), 3 * 3600000);
   // Explorer normally starts the Run-key and Startup-folder apps at sign-in; with Nexus as the desktop, nobody else will
   if (shellActive && s.shellRunStartup) setTimeout(() => shellMode.runStartupApps(['nexus']), 6000);
 }
@@ -720,9 +722,32 @@ let lifetimeBusy = false;
 async function refreshGameUpdates() {
   if (!items.length || store.data.settings.checkGameUpdates === false) { if (Object.keys(store.runtime.gameUpdates).length) { store.runtime.gameUpdates = {}; sendState(); } return; }
   try {
-    const next = await gameUpdates.check(items, async (u) => (await netFetch(u)).json());
+    const next = await gameUpdates.check(items, async (u) => (await netFetch(u)).json(), async (u) => {
+      const r = await netFetch(u);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.text();
+    });
     if (JSON.stringify(next) !== JSON.stringify(store.runtime.gameUpdates)) { store.runtime.gameUpdates = next; sendState(); }
   } catch {}
+}
+
+// Current and next banners for the Gacha page. A game that can't be read keeps what was fetched last time.
+let bannersBusy = false;
+async function refreshGachaBanners(force) {
+  if (bannersBusy || !items.length) return;
+  const keys = new Set(items.filter((i) => i.type === 'game').map((i) => Gacha.keyFor(i)).filter(Boolean));
+  const old = store.data.gachaBanners || {};
+  if (!keys.size || (!force && Object.keys(old).length >= keys.size && Object.values(old).every((b) => Date.now() - b.at < 2 * 3600000))) return;
+  bannersBusy = true;
+  try {
+    const fresh = await gachaBanners.fetchAll(async (u) => {
+      const r = await netFetch(u);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    });
+    const next = { ...old, ...fresh };
+    if (JSON.stringify(next) !== JSON.stringify(old)) { store.data.gachaBanners = next; store.save(); sendState(); }
+  } catch {} finally { bannersBusy = false; }
 }
 
 async function refreshLifetime() {
@@ -1219,14 +1244,13 @@ function registerIpc() {
   });
 
   // ----- gacha helper -----
+  ipcMain.handle('gacha:refreshBanners', async () => { await refreshGachaBanners(true); return store.public(); });
   ipcMain.handle('gacha:op', (_e, key, op, p = {}) => {
     const def = Gacha.GAMES[key];
     if (!def) return store.public();
     const now = Date.now();
-    const per = Gacha.periods(now, store.data.settings.region);
     const g = (store.data.gacha[key] = store.data.gacha[key] || {});
     const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, Math.round(Number(v) || 0)));
-    const typeOk = (t) => t === 'daily' || t === 'weekly';
 
     if (op === 'stamina') g.stamina = { value: clamp(p.value, 0, 9999), at: now };
     if (op === 'spend') {
@@ -1234,25 +1258,6 @@ function registerIpc() {
       g.stamina = { value: Math.max(0, cur.value - clamp(p.amount, 0, 999)), at: now };
     }
     if (op === 'max') g.maxOverride = p.value > 0 ? clamp(p.value, 1, 9999) : null;
-    if (op === 'check' && typeOk(p.type)) {
-      g.done = g.done || { daily: {}, weekly: {} };
-      g.done[p.type] = g.done[p.type] || {};
-      if (p.done) g.done[p.type][p.id] = per[p.type]; else delete g.done[p.type][p.id];
-    }
-    if (op === 'checkAll' && typeOk(p.type)) {
-      g.done = g.done || { daily: {}, weekly: {} };
-      g.done[p.type] = {};
-      if (p.done) for (const t of Gacha.tasks(g, key, p.type)) g.done[p.type][t.id] = per[p.type];
-    }
-    if (op === 'addTask' && typeOk(p.type) && String(p.label || '').trim()) {
-      g.custom = g.custom || { daily: [], weekly: [] };
-      g.custom[p.type].push({ id: `u_${now}`, label: String(p.label).trim().slice(0, 60) }); // "u_" marks tasks you added yourself
-    }
-    if (op === 'removeTask' && typeOk(p.type)) {
-      if (String(p.id).startsWith('u_') && g.custom) g.custom[p.type] = g.custom[p.type].filter((t) => t.id !== p.id);
-      else { g.removed = g.removed || []; if (!g.removed.includes(`${p.type}:${p.id}`)) g.removed.push(`${p.type}:${p.id}`); }
-    }
-    if (op === 'resetTasks') { g.custom = { daily: [], weekly: [] }; g.removed = []; }
     if (op === 'bannerEnd') g.bannerEnd = Number(p.value) > 0 ? Math.round(Number(p.value)) : null; // when the current banner phase ends
     if (op === 'pulls') {
       g.pulls = clamp(p.pulls, 0, 9999);

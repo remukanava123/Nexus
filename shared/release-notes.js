@@ -1,5 +1,11 @@
 // What's new, shown once after Nexus is updated. Add an entry for each version you release (the key is the version in package.json).
 module.exports = {
+  '1.3.4': {
+    title: 'Update labels for Battle.net games',
+    items: [
+      ['⬇️', 'Battle.net games that need an update', 'Overwatch and your other Blizzard games now get the Update label too, when Blizzard has a newer version than the one installed.'],
+    ],
+  },
   '1.3.3': {
     title: 'A clip player, and launches that never get stuck',
     items: [

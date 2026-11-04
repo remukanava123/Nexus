@@ -131,7 +131,7 @@ const SETTINGS_SCHEMA = [
   { id: 'data', title: 'Data & maintenance', icon: '🧰', rows: [
     { key: 'lowResource', label: 'Low resource mode', desc: 'Turns off graphics acceleration to free some memory. The interface may feel a little less smooth. Takes effect after restarting Nexus; the animation and blur switches under Appearance save even more', type: 'toggle' },
     { key: 'checkUpdates', label: 'Tell me when a new version is out', desc: 'Checks GitHub now and then. Nothing is downloaded until you open the release page', type: 'toggle' },
-    { key: 'checkGameUpdates', label: 'Show which games need an update', desc: 'An "Update" label on the cover. Steam games, Star Rail, Genshin, Zenless Zone Zero and Wuthering Waves; other launchers keep this to themselves', type: 'toggle' },
+    { key: 'checkGameUpdates', label: 'Show which games need an update', desc: 'An "Update" label on the cover. Steam games, Battle.net games, Star Rail, Genshin, Zenless Zone Zero and Wuthering Waves; Epic and EA keep this to themselves', type: 'toggle' },
     { type: 'action', label: 'Check for updates', desc: 'See whether a newer Nexus has been released', button: 'Check now', act: 'checkUpdate' },
     { type: 'action', label: 'Rescan library', desc: 'Look for newly installed games and apps', button: 'Rescan', act: 'rescan' },
     { type: 'action', label: 'Restore hidden items', desc: () => `${prefs.hidden.length} hidden`, button: 'Restore all', act: 'unhide', disabled: () => !prefs.hidden.length },

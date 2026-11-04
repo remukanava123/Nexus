@@ -2,7 +2,8 @@
 //   Steam: the game's appmanifest says an update is queued (Steam itself checks; it shows here once Steam has noticed).
 //   HoYoPlay (Star Rail, Genshin, ZZZ): the version in the game folder's config.ini against HoYoverse's current one.
 //   Wuthering Waves: the version in launcherDownloadConfig.json against Kuro's launcher index.
-// Epic, EA and Battle.net keep their versions behind a login, so they are not checked.
+//   Battle.net: the game folder's .build.info against Blizzard's public version list for that product.
+// Epic and EA keep their versions behind a login, so they are not checked.
 const fs = require('fs');
 const path = require('path');
 const updates = require('./updates');
@@ -38,8 +39,22 @@ function kuroLocal(it) {
   return null;
 }
 
+// Blizzard's pipe-separated tables: a "Name!TYPE:n|..." header row, then one row per line ("## seqn" lines are comments)
+function parseBpsv(text) {
+  const lines = String(text).split(/\r?\n/).filter((l) => l && !l.startsWith('#'));
+  if (!lines.length) return [];
+  const cols = lines[0].split('|').map((c) => c.split('!')[0]);
+  return lines.slice(1).map((l) => { const v = l.split('|'); return Object.fromEntries(cols.map((c, i) => [c, v[i]])); });
+}
+
+// What the game folder says is installed: one row per product in .build.info (WoW keeps retail and Classic in one folder)
+function bnetLocal(it) {
+  const text = readText(path.join(it.location || '', '.build.info'));
+  return text ? parseBpsv(text).filter((r) => r.Active === '1' && r.Product && r['Build Key']) : [];
+}
+
 // -> { [id]: { needs: true, local, remote, source } } for games with an update; games that are up to date are left out
-async function check(items, fetchJson) {
+async function check(items, fetchJson, fetchText) {
   const out = {};
   const games = items.filter((i) => i.type === 'game');
   for (const it of games.filter((g) => g.source === 'steam')) {
@@ -57,6 +72,23 @@ async function check(items, fetchJson) {
         if (local && remote[biz] && cmpVersion(local, remote[biz]) < 0) out[it.id] = { needs: true, source: 'hoyoplay', local, remote: remote[biz] };
       }
     } catch { /* offline */ }
+  }
+  if (fetchText) {
+    const versions = {}; // product -> its rows, fetched once however many games share it
+    for (const it of games.filter((g) => g.source === 'battlenet')) {
+      for (const row of bnetLocal(it)) {
+        try {
+          const code = row.Product.toLowerCase();
+          if (!versions[code]) versions[code] = parseBpsv(await fetchText(`https://us.version.battle.net/v2/products/${code}/versions`));
+          // The row for the branch the game is on (eu, us...); another region's row is not what the launcher would install
+          const remote = versions[code].find((r) => r.Region === row.Branch) || versions[code].find((r) => r.Region === 'us');
+          if (remote && remote.BuildConfig && remote.BuildConfig !== row['Build Key']) {
+            out[it.id] = { needs: true, source: 'battlenet', local: row.Version, remote: remote.VersionsName };
+            break;
+          }
+        } catch { /* offline, or a product Blizzard doesn't list */ }
+      }
+    }
   }
   const kuro = games.find((g) => g.source === 'kuro');
   if (kuro) {
