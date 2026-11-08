@@ -89,7 +89,7 @@ function bannerCardHtml(b, mode, now) {
   } else when = '<div class="gx-when"><span>Dates not announced yet</span></div>';
   const faces = b.featured.length ? `<div class="gx-faces">${b.featured.map(faceHtml).join('')}</div>` : '';
   const art = b.image
-    ? `<div class="gx-art" style="background-image:${esc(cssUrl(b.image))}"></div>`
+    ? `<div class="gx-art"><img src="${esc(b.image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-hide-self></div>`
     : `<div class="gx-art plain">${faces}</div>`;
   return `<article class="gx-banner ${b.kind}${b.image ? ' has-img' : ''}">
     ${art}

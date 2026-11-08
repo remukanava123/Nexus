@@ -87,7 +87,7 @@ function updateTip(id) {
 
 function gameCard(it, meta = '') {
   const art = it.cover
-    ? `<img class="art" src="${esc(it.cover)}" data-fallback="${esc(it.coverFallback || '')}" alt="" loading="lazy"><template>${placeholder(it)}</template>`
+    ? `<img class="art" src="${esc(it.cover)}" data-fallback="${esc(it.coverFallback || '')}" alt="" loading="lazy" decoding="async"><template>${placeholder(it)}</template>`
     : placeholder(it);
   const line = meta ? `<div class="meta">${esc(meta)}</div>` : cardMetaHtml(it);
   return `
@@ -175,7 +175,7 @@ function renderHome() {
 
   if (s.homeGacha) {
     const strip = gachaStripHtml();
-    if (strip) html += section('Gacha dailies', strip, 'gacha');
+    if (strip) html += section('Gacha', strip, 'gacha');
   }
 
   if (s.homeGameOfDay && allGames.length > 3) {
@@ -389,7 +389,7 @@ function syncDetailCover() {
   const it = items.find((i) => i.id === detailId);
   const holder = $('.detail-cover', detail);
   if (!it || !it.cover || !holder || holder.querySelector('img.art')) return;
-  holder.innerHTML = `<img class="art" src="${esc(it.cover)}" data-fallback="${esc(it.coverFallback || '')}" alt=""><template>${placeholder(it)}</template>`;
+  holder.innerHTML = `<img class="art" src="${esc(it.cover)}" data-fallback="${esc(it.coverFallback || '')}" alt="" decoding="async"><template>${placeholder(it)}</template>`;
   $('.detail-hero .bg', detail).style.backgroundImage = cssUrl(it.cover);
 }
 
@@ -620,7 +620,7 @@ function openDetail(id) {
   sfx.play('open');
   const bg = it.cover ? `style="background-image:${esc(cssUrl(it.cover))}"` : '';
   const cover = it.cover
-    ? `<img class="art" src="${esc(it.cover)}" data-fallback="${esc(it.coverFallback || '')}" alt=""><template>${placeholder(it)}</template>`
+    ? `<img class="art" src="${esc(it.cover)}" data-fallback="${esc(it.coverFallback || '')}" alt="" decoding="async"><template>${placeholder(it)}</template>`
     : placeholder(it);
   detail.innerHTML = `
     <button class="detail-close" title="Close (Esc)">✕</button>
@@ -888,6 +888,13 @@ content.addEventListener('contextmenu', (e) => {
 document.addEventListener('mousedown', (e) => { if (!menu.contains(e.target)) closeMenu(); });
 window.addEventListener('blur', closeMenu);
 content.addEventListener('scroll', closeMenu);
+// Marks the page as "being scrolled" until it has been still for a moment (see .is-scrolling in app.css)
+let scrollIdle = 0;
+content.addEventListener('scroll', () => {
+  if (!scrollIdle) document.body.classList.add('is-scrolling');
+  clearTimeout(scrollIdle);
+  scrollIdle = setTimeout(() => { scrollIdle = 0; document.body.classList.remove('is-scrolling'); }, 140);
+}, { passive: true });
 
 // Results follow the typing, but not on every single key: a fast typist would redraw the whole page each time
 let searchTimer;
@@ -1018,8 +1025,7 @@ async function finishBoot() {
 document.addEventListener('click', (e) => { if (e.target.closest('.sidebar button, .chip, button.switch, .theme-swatch, .accent-dot')) sfx.play('tick'); });
 (async function boot() {
   initGachaUi();
-  initOverwatchUi();
-  initTags();
+  initOverwatchUi();  initTags();
   initBarca();
   initNews();
   initClips();
@@ -1043,5 +1049,5 @@ document.addEventListener('click', (e) => { if (e.target.closest('.sidebar butto
   checkBadgeUnlocks();
   loadNews(false); // cached news shows straight away; fresh news follows
   if (prefs.settings.startBigScreen) enterBig();
-  setInterval(() => { tickLive(); if (big.on) bigTick(); }, 1000);
+  setInterval(() => { if (document.hidden) return; tickLive(); if (big.on) bigTick(); }, 1000); // nothing to redraw while Nexus is hidden
 })();

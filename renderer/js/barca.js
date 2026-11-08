@@ -164,13 +164,13 @@ function tabTableHtml() {
 
 function newsRow(n, i) {
   return `<a class="n-row b-card" style="--i:${i}" data-ext="${esc(n.url)}" title="${esc(n.title)}">
-    <div class="n-img">${n.image ? `<img src="${esc(n.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-hide-self>` : `<span>${esc((n.source || '?')[0])}</span>`}</div>
+    <div class="n-img">${n.image ? `<img src="${esc(n.image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-hide-self>` : `<span>${esc((n.source || '?')[0])}</span>`}</div>
     <div class="n-body"><b>${esc(n.title)}</b><small>${esc(n.source)} · ${n.date ? timeAgo(n.date) : ''}</small></div></a>`;
 }
 
 function newsTabHtml() {
   return `<div class="n-grid">${barca.news.map((n, i) => `<a class="n-card b-card" style="--i:${Math.min(i, 14)}" data-ext="${esc(n.url)}">
-    <div class="n-card-img${n.image ? '' : ' none'}">${n.image ? `<img src="${esc(n.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-hide-self>` : ''}<span class="n-src">${esc(n.source)}</span></div>
+    <div class="n-card-img${n.image ? '' : ' none'}">${n.image ? `<img src="${esc(n.image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-hide-self>` : ''}<span class="n-src">${esc(n.source)}</span></div>
     <div class="n-card-body"><b>${esc(n.title)}</b>${n.summary ? `<p>${esc(n.summary)}</p>` : ''}<small>${n.date ? timeAgo(n.date) : ''}</small></div></a>`).join('') || '<div class="b-empty">No news right now</div>'}</div>`;
 }
 
@@ -190,7 +190,7 @@ function squadHtml() {
     .sort((a, b) => (Number(a.jersey) || 99) - (Number(b.jersey) || 99))
     .map((p) => `<div class="sq-card b-card" style="--i:${Math.min(n++, 16)}"${p.url ? ` data-ext="${esc(p.url)}"` : ''}>
       <div class="sq-num">${esc(p.jersey || '')}</div>
-      <div class="sq-photo">${p.photo ? `<img src="${esc(p.photo)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-hide-self>` : `<span>${esc(p.jersey || (p.name || '?')[0])}</span>`}</div>
+      <div class="sq-photo">${p.photo ? `<img src="${esc(p.photo)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-hide-self>` : `<span>${esc(p.jersey || (p.name || '?')[0])}</span>`}</div>
       <b>${esc(p.name)}</b><small>${esc(p.posName || p.pos)}${p.age ? ` · ${p.age}` : ''}${p.country ? ` · ${esc(p.country)}` : ''}</small></div>`).join('')}</div>` : '').join('') || '<div class="b-empty">Squad not available right now</div>';
 }
 

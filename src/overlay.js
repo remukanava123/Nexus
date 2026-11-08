@@ -44,7 +44,7 @@ function createOverlay({ electron, store, runningNames, runningIds = () => [], n
     const today = matches().filter((m) => m.t >= startOfToday());
     return { game: g, session: sessionStart || 0, now: Date.now(), today: today.filter((m) => !g || sameGame(m.game, g)).map((m) => ({ r: m.r, t: m.t, game: m.game })), all: today.length, editing,
       // Overwatch rank progress today (percent, per role), whatever way the games were logged
-      gains: today.filter((m) => isOw(m.game)).map((m) => ({ r: m.r, role: m.role || OW.roleOf(m.hero) || '', sr: m.sr == null ? null : m.sr })) };
+      gains: today.filter((m) => isOw(m.game)).map((m) => ({ r: m.r, role: OW.modeOf(m) === 'stadium' ? 'stadium' : m.role || OW.roleOf(m.hero) || '', sr: m.sr == null ? null : m.sr })) };
   }
   const pushState = () => send('state', stateFor());
 

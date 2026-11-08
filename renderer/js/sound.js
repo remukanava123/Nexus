@@ -74,9 +74,11 @@ const sfx = (() => {
     setTimeout(() => nodes.forEach((o) => { try { o.stop(); } catch {} }), 900);
   }
 
+  // Each sound belongs to a switch in Settings → Sound & motion
+  const GROUP = { tick: 'soundClicks', select: 'soundClicks', open: 'soundClicks', back: 'soundClicks', launch: 'soundLaunch', boot: 'soundBoot' };
   return {
     play(name) {
-      if (vol() === 0 || !SOUNDS[name]) return;
+      if (vol() === 0 || !SOUNDS[name] || cfg()[GROUP[name]] === false) return;
       try { ensure(); SOUNDS[name](ctx.currentTime + 0.01); } catch {}
     },
     // Hum only while big-screen mode is open and sound + hum are enabled
@@ -90,12 +92,11 @@ const sfx = (() => {
 // Hovering an animated sidebar button plays its own short sound (only while Nexus is the window you are using).
 // The files in assets/sounds are already trimmed and level-matched; this only sets how loud they are overall.
 const HOVER_FILES = { home: 'home', games: 'games', apps: 'apps', web: 'web', favorites: 'favorites', stats: 'stats', barca: 'barca', news: 'news', clips: 'clips', gacha: 'gacha', settings: 'settings' }; // Overwatch has no sound
-const HOVER_LEVEL = 0.3; // a quiet background touch: 1 would be full volume
 const hoverAudio = {};
 function playHover(view) {
   const file = HOVER_FILES[view];
   if (!file) return;
-  const vol = (prefs.settings.sounds === false ? 0 : (prefs.settings.soundVolume ?? 40) / 100) * HOVER_LEVEL;
+  const vol = (prefs.settings.sounds === false ? 0 : (prefs.settings.soundVolume ?? 40) / 100) * ((prefs.settings.hoverVolume ?? 30) / 100);
   if (vol <= 0) return;
   const a = hoverAudio[file] || (hoverAudio[file] = new Audio(`../assets/sounds/${file}.wav`));
   a.volume = Math.min(1, vol);

@@ -71,7 +71,7 @@ function renderNews() {
 
   // HoYoverse launcher banners ("what's on right now") for the games that have them
   const banners = games.flatMap((g) => (newsData.byGame[g.id].banners || []).slice(0, 3).map((b) => ({ ...b, game: g.name })));
-  const bannerStrip = banners.length && (newsFilter === 'all' || newsFilter === 'updates') ? `<div class="nw-banners">${banners.map((b, i) => `<a class="nw-banner b-card" style="--i:${i}" data-ext="${esc(b.url || '')}" title="${esc(b.game)}"><img src="${esc(b.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-hide-self><span>${esc(b.game)}</span></a>`).join('')}</div>` : '';
+  const bannerStrip = banners.length && (newsFilter === 'all' || newsFilter === 'updates') ? `<div class="nw-banners">${banners.map((b, i) => `<a class="nw-banner b-card" style="--i:${i}" data-ext="${esc(b.url || '')}" title="${esc(b.game)}"><img src="${esc(b.image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-hide-self><span>${esc(b.game)}</span></a>`).join('')}</div>` : '';
 
   // launcher feeds (no dates) first, then the games with the freshest news
   const latest = (g) => { const it = newsData.byGame[g.id].items; return it[0] && it[0].date ? it[0].date : Number.MAX_SAFE_INTEGER; };
@@ -82,7 +82,7 @@ function renderNews() {
     if (newsFilter === 'updates') list = list.filter((n) => n.isUpdate);
     if (!list.length) return '';
     return `<div class="nw-card b-card" style="--i:${i}">
-      <div class="nw-head"><div class="nw-art">${g.cover ? `<img src="${esc(g.cover)}" alt="" loading="lazy" data-hide-self>` : ''}</div>
+      <div class="nw-head"><div class="nw-art">${g.cover ? `<img src="${esc(g.cover)}" alt="" loading="lazy" decoding="async" data-hide-self>` : ''}</div>
         <div><b data-open="${esc(g.id)}" class="nw-name">${esc(nameOf(g))}</b>${d.version ? `<span class="nw-ver">v${esc(d.version)}</span>` : ''}
           <small>${d.items[0] && d.items[0].date ? `Latest ${timeAgo(d.items[0].date)}` : 'From the game launcher'}</small></div></div>
       <div class="nw-list">${list.slice(0, 6).map((n) => newsItemHtml(n, { gameId: g.id })).join('')}</div></div>`;

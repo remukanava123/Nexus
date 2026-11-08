@@ -60,8 +60,16 @@ function applyTheme(s) {
   b.dataset.cover = s.coverShape || 'portrait';
   b.dataset.hover = s.hoverEffect || 'lift';
   b.dataset.font = s.fontFamily || 'segoe';
+  // Performance mode switches off the costly extras at once; each one also has its own switch
+  const perf = !!s.perfMode;
+  b.classList.toggle('perf', perf);
   b.classList.toggle('no-anim', !s.animations);
-  b.classList.toggle('no-blur', !s.blur);
+  b.classList.toggle('no-blur', !s.blur || perf);
+  b.classList.toggle('no-enter', perf || s.entranceAnim === false);
+  b.classList.toggle('no-navanim', perf || s.navIconAnim === false);
+  b.classList.toggle('no-spot', perf || s.hoverSpotlight === false);
+  b.classList.toggle('no-rip', perf || s.clickRipple === false);
+  b.classList.toggle('flat-covers', perf || s.coverShadows === false);
   b.classList.toggle('hide-badges', !s.showBadges);
   b.classList.toggle('hide-titles', !s.showTitles);
   b.classList.toggle('hide-fav', s.showFavStar === false);

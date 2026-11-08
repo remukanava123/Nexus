@@ -796,7 +796,7 @@ function checkAlerts() {
     if (n.daily === undefined) { n.daily = per.daily; changed = true; } // first run: remember, don't alert
     else if (n.daily !== per.daily) { n.daily = per.daily; changed = true; resets.push(def.name); }
   }
-  if (resets.length && s.notifyReset) notifyUser('Daily reset', `${resets.join(', ')}: dailies are available again.`, 'gacha');
+  if (resets.length && s.notifyReset) notifyUser('Daily reset', `${resets.join(', ')}: the daily reset has happened.`, 'gacha');
   if (changed) store.save();
 }
 
@@ -1329,8 +1329,14 @@ function registerIpc() {
       out.heroes = [...new Set(list.map((h) => str(h, 40).trim()).filter(Boolean))].slice(0, 8);
       out.hero = out.heroes[0] || '';
     }
-    if ('map' in p) out.map = str(p.map, 40);
-    if ('role' in p && ['tank', 'damage', 'support', 'open', 'stadium', ''].includes(p.role)) out.role = p.role;
+    // Stadium is played as a series of rounds, each on a different map; `map` stays the first one, for older code
+    if ('maps' in p || 'map' in p) {
+      const list = Array.isArray(p.maps) ? p.maps : [p.map];
+      out.maps = [...new Set(list.map((x) => str(x, 40).trim()).filter(Boolean))].slice(0, 12);
+      out.map = out.maps[0] || '';
+    }
+    if ('mode' in p && ['competitive', 'stadium'].includes(p.mode)) out.mode = p.mode;
+    if ('role' in p && ['tank', 'damage', 'support', 'open', ''].includes(p.role)) out.role = p.role;
     if ('sr' in p) out.sr = p.sr === '' || p.sr == null ? null : Math.max(-100, Math.min(100, Math.round((Number(p.sr) || 0) * 10) / 10)); // role rank progress in percent
     if ('note' in p) out.note = str(p.note, 200);
     if ('t' in p && Number.isFinite(Number(p.t))) out.t = Number(p.t);
@@ -1338,7 +1344,11 @@ function registerIpc() {
   };
   ipcMain.handle('matches:list', () => {
     let fixed = false;
-    for (const m of matchList()) if (!m.id) { m.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); fixed = true; }
+    for (const m of matchList()) {
+      if (!m.id) { m.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); fixed = true; }
+      // Stadium used to be a "role". It is a mode now, with the real role next to it
+      if (m.role === 'stadium') { m.mode = 'stadium'; m.role = OWDATA.roleOfAll(OWDATA.heroesOf(m)) === 'open' ? '' : OWDATA.roleOfAll(OWDATA.heroesOf(m)); fixed = true; }
+    }
     if (fixed) store.save();
     return matchList();
   });

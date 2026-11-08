@@ -35,6 +35,8 @@ const DEFAULT_SETTINGS = {
   autoUpdate: true, returnAfterGame: true, returnFullscreen: true, gameMode: 'behind',
   // Sound & motion
   sounds: true, soundVolume: 40, ambientHum: true, bootAnimation: true, launchFade: true,
+  soundClicks: true, soundLaunch: true, soundBoot: true, hoverVolume: 30,
+  perfMode: false, entranceAnim: true, navIconAnim: true, hoverSpotlight: true, clickRipple: true, coverShadows: true,
   // Playtime
   trackPlaytime: true, breakReminder: false, breakMinutes: 120, badgePopups: true, toastCorner: 'bottom-right', toastSeconds: 7,
   hoursMode: 'total', hoursFormat: 'short', weekStart: 'monday',

@@ -24,7 +24,7 @@ const clipsForGame = (it) => (clipsData ? clipsData.clips.filter((c) => clipMatc
 const clipSize = (n) => (n > 1e9 ? `${(n / 1e9).toFixed(1)} GB` : `${Math.round(n / 1e6)} MB`);
 
 function clipCardHtml(c, i) {
-  const pic = c.thumb ? `<img src="${esc(c.thumb)}" alt="" loading="lazy" data-hide-self>` : `<video src="${esc(c.url)}#t=1" preload="metadata" muted></video>`;
+  const pic = c.thumb ? `<img src="${esc(c.thumb)}" alt="" loading="lazy" decoding="async" data-hide-self>` : `<video src="${esc(c.url)}#t=1" preload="metadata" muted></video>`;
   return `<div class="clip-card b-card" style="--i:${Math.min(i, 20)}" data-clip="${esc(c.path)}" title="${esc(c.path)}">
     <div class="clip-pic">${pic}${c.type === 'clip' ? '<span class="clip-play">▶</span>' : ''}</div>
     <div class="clip-meta"><b>${esc(c.game)}</b><small>${timeAgo(c.t)} · ${clipSize(c.size)}</small></div>

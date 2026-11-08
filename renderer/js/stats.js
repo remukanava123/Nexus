@@ -136,7 +136,7 @@ function renderStats() {
   const top = perGame.slice(0, 8);
   const topRows = top.map(({ g, sec }) => `
     <div class="toprow" data-open="${esc(g.id)}" title="Open ${esc(g.name)}">
-      <div class="toprow-art">${g.cover ? `<img src="${esc(g.cover)}" alt="" loading="lazy" data-hide-self>` : ''}</div>
+      <div class="toprow-art">${g.cover ? `<img src="${esc(g.cover)}" alt="" loading="lazy" decoding="async" data-hide-self>` : ''}</div>
       <div class="toprow-main"><div class="toprow-name">${esc(nameOf(g))}${isRunning(g.id) ? ' <span class="live-dot" title="Playing now"></span>' : ''}</div>
         <div class="toprow-bar"><span style="width:${(sec / top[0].sec) * 100}%"></span></div></div>
       <div class="toprow-val">${fmtHours(sec)}</div>

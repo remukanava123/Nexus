@@ -82,7 +82,7 @@ function achievementsHtml(a) {
   const rare = done.filter((x) => x.percent !== null && x.percent < 10).sort((x, y) => x.percent - y.percent).slice(0, 3);
   const recent = [...done].sort((x, y) => y.time - x.time).slice(0, 3);
   const row = (x, extra = '') => `<div class="ach-item${x.done ? '' : ' locked'}">
-      ${x.icon ? `<img src="${esc(x.icon)}" alt="" loading="lazy" data-hide-self>` : '<div class="ach-ph">🏆</div>'}
+      ${x.icon ? `<img src="${esc(x.icon)}" alt="" loading="lazy" decoding="async" data-hide-self>` : '<div class="ach-ph">🏆</div>'}
       <div><b>${esc(x.hidden && !x.done ? 'Hidden achievement' : x.name)}</b>
         <small>${esc(x.hidden && !x.done ? 'Keep playing to find out' : x.desc)}</small>
         <small class="ach-meta">${x.done && x.time ? `Unlocked ${when(x.time)}` : ''}${x.percent !== null ? `${x.done && x.time ? ' · ' : ''}${x.percent}% of players${x.percent < 5 ? ' · ultra rare' : ''}` : ''}${extra}</small></div>

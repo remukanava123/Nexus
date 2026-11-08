@@ -1,5 +1,15 @@
 // What's new, shown once after Nexus is updated. Add an entry for each version you release (the key is the version in package.json).
 module.exports = {
+  '1.3.5': {
+    title: 'Proper Stadium support, and a smoother Nexus',
+    items: [
+      ['🏟️', 'Stadium is its own mode', 'The Overwatch match log now has a mode: Competitive or Stadium. Stadium only offers its own heroes and its own maps (Busan Sanctuary, Ilios Ruins and the rest), has Tank, Damage and Support but no open queue, and takes one map per round you played. Old Stadium entries are moved over for you, and the page can filter and count by mode.'],
+      ['🧈', 'Smoother scrolling', 'Pages no longer repaint hover effects while you scroll, cover labels and news cards no longer sit on a live blur each, the page background no longer forces the whole window to be masked every frame, and pictures decode off the main thread.'],
+      ['⚡', 'Performance mode', 'One switch for slow PCs: no blur, no page-opening animations, no hover glow, ripples or cover shadows. Settings → Sound & motion.'],
+      ['🔇', 'Switch off any sound you like', 'Hover sounds now have their own volume, and clicks and menus, the launch sweep and the startup chime each have a switch.'],
+      ['🎛️', 'More effect switches', 'Page-opening animation, animated sidebar icons, the spotlight on cards, click ripples and cover shadows can each be turned off.'],
+    ],
+  },
   '1.3.4': {
     title: 'Update labels for Battle.net games',
     items: [

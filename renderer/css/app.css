@@ -299,9 +299,12 @@ kbd { font: 11px "Segoe UI", sans-serif; color: var(--muted); background: var(--
 .nav-sep { height: 1px; background: var(--border); margin: 8px 6px; }
 .sidebar-bottom { border-top: 1px solid var(--border); padding-top: 8px; }
 
-main { position: relative; overflow: hidden; }
+/* main does not clip (rounded corners + overflow:hidden around a scroller makes the GPU mask the whole page every frame while you scroll);
+   only the blurred background is clipped, by its own wrapper */
+main { position: relative; }
 .topbar, .content { position: relative; z-index: 1; }
-.page-bg { position: absolute; inset: 0 0 auto 0; height: 380px; pointer-events: none; z-index: 0; background-size: cover; background-position: center top; }
+.page-clip { position: absolute; inset: 0 0 auto 0; height: 380px; overflow: hidden; border-top-left-radius: 15px; pointer-events: none; z-index: 0; }
+.page-bg { position: absolute; inset: 0; pointer-events: none; background-size: cover; background-position: center top; }
 body[data-bg="glow"] .page-bg { background-image: radial-gradient(ellipse 70% 100% at 25% 0%, rgba(var(--accent-rgb), .20), transparent 70%), radial-gradient(ellipse 50% 80% at 90% 0%, rgba(var(--accent-rgb), .09), transparent 70%); }
 body[data-bg="art"] .page-bg { filter: blur(34px) saturate(1.3); opacity: .28; transform: scale(1.2); -webkit-mask-image: linear-gradient(#000 20%, transparent); mask-image: linear-gradient(#000 20%, transparent); }
 body[data-bg="none"] .page-bg { display: none; }
@@ -1073,7 +1076,7 @@ body:not(.no-anim) .leave-card { animation: coverFloat 5s ease-in-out infinite a
 .ow-career > div { margin-bottom: 4px; font-size: 13px; }
 
 .ow-hist { margin-top: 12px; }
-.ow-hrow { display: grid; grid-template-columns: 150px 80px 1.1fr 1.1fr 92px 74px 1.2fr 34px; gap: 8px; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.ow-hrow { display: grid; grid-template-columns: 150px 80px 1.1fr 1.1fr 112px 92px 74px 1.2fr 34px; gap: 8px; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
 .ow-hrow.head { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .8px; }
 .ow-hrow.missing { background: linear-gradient(90deg, rgba(249, 158, 26, .07), transparent); }
 .ow-when em { font-style: normal; font-size: 10px; padding: 1px 6px; border-radius: 10px; background: var(--surface-3); color: var(--muted); margin-left: 4px; }
@@ -1352,6 +1355,8 @@ body.plain-nav .sidebar button[data-view="barca"]:hover, body.plain-nav .sidebar
 .ow-heroes { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 34px; padding: 3px 4px; border-radius: 8px; background: var(--surface-3); border: 1px solid var(--border); min-width: 0; }
 .ow-heroes:focus-within { border-color: var(--accent); }
 .ow-form .ow-heroes { min-width: 220px; max-width: 420px; }
+.ow-mapfield { display: contents; }
+.ow-form .ow-maps { min-width: 240px; }
 .ow-heroes input, .ow-form .ow-heroes input, .ow-hrow .ow-heroes input { flex: 1; min-width: 60px; height: 26px; border: 0; background: none; padding: 0 4px; }
 .ow-hchip { display: inline-flex; align-items: center; gap: 2px; padding: 2px 4px 2px 8px; border-radius: 999px; font-size: 12px; background: rgba(var(--accent-rgb), .18); white-space: nowrap; }
 .ow-hchip[data-role="tank"] { background: rgba(80, 160, 255, .2); }
@@ -1453,8 +1458,10 @@ body:has(.cp:not([hidden])) .toast { z-index: 96; bottom: 110px; }
 .gx-hero { position: relative; isolation: isolate; overflow: hidden; border-radius: 22px; border: 1px solid var(--border); padding: 22px 24px 20px; background: var(--surface-2); }
 .gx-hero-bg { position: absolute; inset: -30px; z-index: -2; background-size: cover; background-position: center 20%;
   background-image: radial-gradient(900px 320px at 12% 0%, color-mix(in srgb, var(--gc) 42%, transparent), transparent 62%), linear-gradient(135deg, color-mix(in srgb, var(--gc) 16%, var(--surface-2)), var(--surface-2)); }
-.gx-hero-bg[style] { filter: blur(22px) saturate(1.35) brightness(.6); }
-.gx-hero::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(8, 10, 16, .15), rgba(8, 10, 16, .7)); }
+/* No CSS blur here: a blurred layer inside the scrolling page is re-blurred on the GPU every frame, which made this page the slowest to scroll.
+   The banner art sits under a dark gradient instead. */
+.gx-hero-bg[style] { opacity: .5; }
+.gx-hero::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(8, 10, 16, .35), rgba(8, 10, 16, .82)); }
 .gx-hero-in { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
 .gx-cover { width: 58px; height: 87px; border-radius: 10px; overflow: hidden; flex: none; background: var(--surface-3); box-shadow: 0 10px 28px rgba(0, 0, 0, .5); }
 .gx-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -1473,7 +1480,8 @@ body:has(.cp:not([hidden])) .toast { z-index: 96; bottom: 110px; }
 .gx-banners { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; }
 .gx-banner { display: flex; flex-direction: column; overflow: hidden; border-radius: 16px; background: var(--surface-2); border: 1px solid var(--border); transition: transform .2s, border-color .2s, box-shadow .2s; }
 .gx-banner:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--gc) 50%, transparent); box-shadow: 0 14px 32px rgba(0, 0, 0, .35); }
-.gx-art { aspect-ratio: 16 / 9; background-color: var(--surface-3); background-size: cover; background-position: center; }
+.gx-art { aspect-ratio: 16 / 9; background-color: var(--surface-3); overflow: hidden; }
+.gx-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .gx-art.plain .gx-face { width: 84px; height: 84px; font-size: 28px; }
 .gx-plan .cap { margin-left: 0; }
 .gx-art.plain { aspect-ratio: auto; min-height: 134px; display: flex; align-items: center; justify-content: center; padding: 16px;
@@ -1515,3 +1523,25 @@ body:has(.cp:not([hidden])) .toast { z-index: 96; bottom: 110px; }
 .gx-link:hover { background: color-mix(in srgb, var(--gc) 16%, var(--surface-2)); border-color: color-mix(in srgb, var(--gc) 55%, transparent); }
 .gx-link i { font-style: normal; opacity: .6; margin-left: 4px; }
 .gx-link.search { border-style: dashed; }
+
+/* ---------- Smoothness and the effect switches (classes set by theme.js) ---------- */
+/* While the page is being scrolled, what is under the pointer does not react: hover lifts, shadows and glows repainting under a moving page are what makes scrolling stutter */
+body.is-scrolling .content > * { pointer-events: none; }
+body.no-enter .anim-in :is(.hero, .greeting, .gotd, .nowplaying, .section-head, .game, .tile, .stat-card, .panel, .g-card, .g-chip, .set-section, .facts-strip, .page-title, .page-sub, .chips, .b-card, .b-hero),
+body.no-enter .cover img.art, body.no-enter .detail:not([hidden]) { animation: none !important; }
+body.no-navanim .sidebar svg, body.no-navanim .sidebar svg * { animation: none !important; }
+body.no-spot :is(.game, .tile, .stat-card, .g-card)::after { display: none !important; }
+body.no-rip .rip { display: none !important; }
+body.flat-covers .cover { box-shadow: none; }
+body.flat-covers .game:hover .cover, body.flat-covers .game.selected .cover { box-shadow: 0 0 0 2px rgba(255, 255, 255, .85); }
+body.perf .page-clip { display: none; }
+body.perf .cover, body.perf .cover .overlay, body.perf .overlay .play, body.perf .game, body.perf .tile { transition: none; }
+/* Small labels on every card used to sit on a live blur each, which is a lot of GPU work for a few words; they are a little more opaque instead */
+.badge { background: rgba(10, 12, 16, .82); }
+.badge, .n-src, .nw-banner span, .bh-count > div { backdrop-filter: none; }
+.n-src, .nw-banner span { background: rgba(0, 0, 0, .72); }
+.bh-count > div { background: rgba(0, 0, 0, .4); }
+/* The Barça page's drifting colour blobs: a gradient that fades out looks the same as a blurred disc, without a blur filter redone every frame */
+.b-orb { filter: none; }
+.b-orb.o1 { background: radial-gradient(circle, #2b7bff 0%, transparent 68%); }
+.b-orb.o2 { background: radial-gradient(circle, #ff2d72 0%, transparent 68%); }

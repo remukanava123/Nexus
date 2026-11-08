@@ -3,7 +3,7 @@
   const CARD = '.game, .tile, .stat-card, .g-card';
   let raf = 0, last = null;
   document.addEventListener('pointermove', (e) => {
-    if (document.body.classList.contains('no-anim')) return;
+    if (document.body.classList.contains('no-anim') || document.body.classList.contains('no-spot') || document.body.classList.contains('is-scrolling')) return;
     last = e;
     if (raf) return;
     raf = requestAnimationFrame(() => {
@@ -25,7 +25,7 @@
     if (card && !card.contains(e.relatedTarget)) { card.style.setProperty('--rx', '0deg'); card.style.setProperty('--ry', '0deg'); }
   }, { passive: true });
   document.addEventListener('pointerdown', (e) => {
-    if (document.body.classList.contains('no-anim')) return;
+    if (document.body.classList.contains('no-anim') || document.body.classList.contains('no-rip')) return;
     const el = e.target.closest && e.target.closest('button, .chip, .tile, .game');
     if (!el) return;
     const r = el.getBoundingClientRect();
