@@ -27,6 +27,7 @@ const ps = require('./src/ps');
 const clips = require('./src/clips');
 const gameUpdates = require('./src/game-updates');
 const gachaBanners = require('./src/gacha-banners');
+const gachaBuilds = require('./src/gacha-builds');
 const IS_LINUX = process.platform === 'linux';
 const linux = IS_LINUX ? require('./src/linux') : null;
 if (IS_LINUX) {
@@ -77,6 +78,11 @@ function init() {
   store = new Store(app.getPath('userData'));
   if (shellActive) store.runtime.shellMode = 'shell';
   const s = store.data.settings;
+  // YouTube refuses to play an embed whose page sends no Referer ("Video player configuration error"), and an app
+  // loaded from a file has none. Give the trailer embeds on the Gacha page a plain https one, and nothing else.
+  require('electron').session.defaultSession.webRequest.onBeforeSendHeaders({ urls: ['https://www.youtube-nocookie.com/embed/*', 'https://www.youtube.com/embed/*'] }, (details, cb) => {
+    cb({ requestHeaders: { ...details.requestHeaders, Referer: 'https://nexus-launcher.app/' } });
+  });
   createWindow(process.argv.includes('--hidden'));
   createTray();
   if (!registerHotkey(s.hotkey)) registerHotkey(SETTING_DEFAULTS.hotkey);
@@ -102,6 +108,7 @@ function init() {
   if (s.trackPlaytime) tracker.start();
   getLibrary(false).catch(console.error); // start scanning before the page even asks
   feeds.init(app.getPath('userData'));
+  gachaBuilds.init(app.getPath('userData'));
   setTimeout(refreshNews, 20000);
   setInterval(refreshNews, 30 * 60000);
   setInterval(checkAlerts, 30000);
@@ -734,10 +741,11 @@ async function refreshGameUpdates() {
 // Current and next banners for the Gacha page. A game that can't be read keeps what was fetched last time.
 let bannersBusy = false;
 async function refreshGachaBanners(force) {
-  if (bannersBusy || !items.length) return;
-  const keys = new Set(items.filter((i) => i.type === 'game').map((i) => Gacha.keyFor(i)).filter(Boolean));
+  if (bannersBusy) return;
+  // All four games, installed or not: the Gacha page lists every game
+  const keys = new Set(Object.keys(Gacha.GAMES));
   const old = store.data.gachaBanners || {};
-  if (!keys.size || (!force && Object.keys(old).length >= keys.size && Object.values(old).every((b) => Date.now() - b.at < 2 * 3600000))) return;
+  if (!keys.size || (!force && Object.keys(old).length >= keys.size && Object.values(old).every((b) => b.sv === gachaBanners.SHAPE && Date.now() - b.at < 2 * 3600000))) return;
   bannersBusy = true;
   try {
     const fresh = await gachaBanners.fetchAll(async (u) => {
@@ -1245,6 +1253,18 @@ function registerIpc() {
 
   // ----- gacha helper -----
   ipcMain.handle('gacha:refreshBanners', async () => { await refreshGachaBanners(true); return store.public(); });
+  // Prydwen.gg build summary for the character popup. A 403/404 counts as "no page" (status set), a thrown network error as offline.
+  ipcMain.handle('gacha:build', (_e, key, name) => gachaBuilds.getBuild(String(key), String(name).slice(0, 80), async (u) => {
+    const r = await netFetch(u, { headers: { Accept: 'text/html,application/xhtml+xml', 'Accept-Language': 'en-GB,en;q=0.9' } });
+    if (!r.ok) throw Object.assign(new Error('HTTP ' + r.status), { status: r.status });
+    return r.text();
+  }, store.data.settings.gachaBuilds !== false));
+  // Official trailer (YouTube id) for the hover preview, found through the game's wiki. Follows the same switch as the builds.
+  ipcMain.handle('gacha:trailer', (_e, key, name) => store.data.settings.gachaBuilds === false ? { ok: false } : gachaBuilds.getTrailer(String(key), String(name).slice(0, 80), async (u) => {
+    const r = await netFetch(u, { headers: { Accept: 'application/json' } });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.text();
+  }));
   ipcMain.handle('gacha:op', (_e, key, op, p = {}) => {
     const def = Gacha.GAMES[key];
     if (!def) return store.public();

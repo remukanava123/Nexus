@@ -17,7 +17,7 @@ const Gacha = (() => {
   // info: what people google about each game. About, rates and rules are written from the games' public pages and wikis.
   const GAMES = {
     hsr: {
-      name: 'Honkai: Star Rail', color: '#c9a6ff', ids: ['hoyo:hkrpg_global'], nameRe: /honkai.*star rail/i,
+      name: 'Honkai: Star Rail', color: '#c9a6ff', palette: ['#c9a6ff', '#6f7dff', '#ff7ac8', '#4fd1ff', '#ffd27a'], weaponLabel: 'Light cones', ids: ['hoyo:hkrpg_global'], nameRe: /honkai.*star rail/i,
       stamina: { name: 'Trailblaze Power', max: 300, minutes: 6 },
       spend: [10, 30, 40, 60],
       banners: [
@@ -34,7 +34,7 @@ const Gacha = (() => {
       },
     },
     wuwa: {
-      name: 'Wuthering Waves', color: '#8fd6c8', ids: ['kuro:wuwa'], nameRe: /wuthering waves/i,
+      name: 'Wuthering Waves', color: '#8fd6c8', palette: ['#5fe0d0', '#3fb8d9', '#2a7f9e', '#b8f2e6', '#e8c76a'], weaponLabel: 'Weapons', ids: ['kuro:wuwa'], nameRe: /wuthering waves/i,
       stamina: { name: 'Waveplate', max: 240, minutes: 6 },
       spend: [20, 40, 60],
       banners: [
@@ -52,7 +52,7 @@ const Gacha = (() => {
       },
     },
     genshin: {
-      name: 'Genshin Impact', color: '#ffd27a', ids: ['hoyo:hk4e_global'], nameRe: /genshin impact/i,
+      name: 'Genshin Impact', color: '#ffd27a', palette: ['#ffd27a', '#7cc8f5', '#8fd65f', '#f5e6a8', '#4fa3d9'], weaponLabel: 'Weapons', ids: ['hoyo:hk4e_global'], nameRe: /genshin impact/i,
       stamina: { name: 'Original Resin', max: 200, minutes: 8 },
       spend: [20, 30, 40, 60],
       banners: [
@@ -69,7 +69,7 @@ const Gacha = (() => {
       },
     },
     zzz: {
-      name: 'Zenless Zone Zero', color: '#ff9d5c', ids: ['hoyo:nap_global'], nameRe: /zenless zone zero/i,
+      name: 'Zenless Zone Zero', color: '#ff9d5c', palette: ['#ff9d5c', '#d4f55a', '#ff5fb0', '#ffb070', '#b8e04a'], weaponLabel: 'W-Engines', ids: ['hoyo:nap_global'], nameRe: /zenless zone zero/i,
       stamina: { name: 'Battery Charge', max: 240, minutes: 6 },
       spend: [20, 40, 60],
       banners: [
@@ -86,6 +86,10 @@ const Gacha = (() => {
       },
     },
   };
+
+  // Element colours for the element tags and card edges. Element names differ between games (HSR and ZZZ use
+  // their own, Genshin and WuWa use theirs), so one table covers all of them.
+  const ELEMENT_COLORS = { Physical: '#c9ccd6', Fire: '#ff6a4d', Ice: '#7fd3ff', Lightning: '#c77dff', Wind: '#5fe0b0', Quantum: '#7a7dff', Imaginary: '#ffd65c', Ether: '#ff5fb8', Electric: '#5fb4ff', Pyro: '#ff7a4d', Hydro: '#4dafff', Anemo: '#5fe0b0', Electro: '#b07dff', Dendro: '#8fd65f', Cryo: '#9fe6ff', Geo: '#ffc94d', Glacio: '#7fd3ff', Fusion: '#ff6a4d', Aero: '#5fe0b0', Spectro: '#ffe27a', Havoc: '#d65fa8' };
 
   const offsetOf = (region) => (REGIONS[region] || REGIONS.europe).offset;
 
@@ -181,7 +185,7 @@ const Gacha = (() => {
     return `${min}m`;
   }
 
-  return { REGIONS, SERVERS, GAMES, keyFor, periods, nextResets, stamina, fmtDuration, bannerInfo, pullPlan, PHASE_DAYS, DEFAULT_PULLS_PER_DAY, DAY, HOUR };
+  return { REGIONS, SERVERS, GAMES, ELEMENT_COLORS, keyFor, periods, nextResets, stamina, fmtDuration, bannerInfo, pullPlan, PHASE_DAYS, DEFAULT_PULLS_PER_DAY, DAY, HOUR };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = Gacha;

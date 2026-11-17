@@ -29,7 +29,7 @@ const DEFAULT_SETTINGS = {
   hideOnLaunch: true, closeToTray: true, startWithWindows: false, alwaysOnTop: false, hotkey: 'Control+Alt+Space',
   launchConfetti: false, startBigScreen: false, startFullscreen: false,
   launchCover: true, launchExtraWait: 2, launchMinWidth: 1600, shellRunStartup: true, coverTips: true, coverArt: true,
-  lowResource: false, checkUpdates: true, checkGameUpdates: true,
+  lowResource: false, checkUpdates: true, checkGameUpdates: true, gachaBuilds: true,
   lifetimeHours: true, welcomeDone: false, hoverSounds: true,
   overlay: true, overlayMusic: true, overlayBars: true, overlayStats: true, owTag: '', owAutoTrack: false, overlayGames: [], overlayOpacity: 100,
   autoUpdate: true, returnAfterGame: true, returnFullscreen: true, gameMode: 'behind',

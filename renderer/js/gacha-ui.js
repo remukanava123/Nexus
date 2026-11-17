@@ -12,6 +12,20 @@ function gachaGames() {
   return Object.keys(Gacha.GAMES).filter((k) => found[k]).map((key) => ({ key, def: Gacha.GAMES[key], item: found[key] }));
 }
 
+// Every gacha game, for the page itself: one you don't have still shows its banners, resets and planner (no Play button).
+// `item` is null for those.
+function gachaAllGames() {
+  const have = {};
+  for (const g of gachaGames()) have[g.key] = g.item;
+  return Object.keys(Gacha.GAMES).map((key) => ({ key, def: Gacha.GAMES[key], item: have[key] || null }));
+}
+// A small picture for a game without a library cover: a character from its current banner
+function gachaFaceIcon(key) {
+  const d = prefs.gachaBanners && prefs.gachaBanners[key];
+  const f = d && d.current.flatMap((b) => b.featured || []).find((x) => x.icon);
+  return f ? f.icon : '';
+}
+
 const gState = (key) => (prefs.gacha && prefs.gacha[key]) || {};
 const gBanners = (key) => (prefs.gachaBanners && prefs.gachaBanners[key]) || null;
 const clockTime = (ms) => {
@@ -67,14 +81,49 @@ function gachaStripHtml() {
 // ----- Banners -----
 const KIND_LABEL = { char: 'Character', weapon: 'Weapon', chronicled: 'Chronicled' };
 
-function faceHtml(f) {
-  return `<span class="gx-face" data-ch="${esc((f.name || '?')[0])}" title="${esc(f.name)}">${f.icon ? `<img src="${esc(f.icon)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-hide-self>` : ''}</span>`;
+// One entry per featured item: { b, f }. A banner with nothing featured gives one entry with f = null (its picture and title).
+// Characters and weapons are kept apart so each gets its own grid.
+function gxEntries(list) {
+  const out = { chars: [], weapons: [] };
+  const seen = new Set();
+  for (const b of list || []) {
+    const feats = b.featured && b.featured.length ? b.featured : [null];
+    for (const f of feats) {
+      const id = `${b.kind}|${f ? f.name : b.title}`;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      (b.kind === 'weapon' ? out.weapons : out.chars).push({ b, f });
+    }
+  }
+  const nm = (e) => (e.f ? e.f.name : e.b.title) || '';
+  const by = (a, c) => (a.b.end || 0) - (c.b.end || 0) || nm(a).localeCompare(nm(c));
+  out.chars.sort(by);
+  out.weapons.sort(by);
+  return out;
+}
+
+// Cards per row so no row is left with an orphan: 5 -> 3+2, 7 -> 4+3. Returns one "per" value per card (all of 1-4 divide 12).
+function gxSpans(n) {
+  const rows = Math.ceil(n / 4);
+  const base = Math.floor(n / rows);
+  const extra = n % rows;
+  const out = [];
+  for (let r = 0; r < rows; r++) {
+    const per = base + (r < extra ? 1 : 0);
+    for (let i = 0; i < per; i++) out.push(per);
+  }
+  return out;
 }
 
 // mode: 'now' (running, with a progress bar) or 'next' (starts later)
-function bannerCardHtml(b, mode, now) {
-  const names = b.featured.map((f) => f.name);
-  const head = names.length ? names.join(' · ') : b.title;
+function gxCardHtml(e, mode, now, per, key) {
+  const { b, f } = e;
+  const def = Gacha.GAMES[key] || {};
+  const art = f && f.splash ? f.splash : f && f.icon ? f.icon : !f ? b.image : '';
+  const fit = f && f.splash ? (f.splashFit === 'cover' ? 'fit-cover' : 'fit-cutout') : f && f.icon ? 'fit-icon' : b.image ? 'fit-banner' : 'fit-none';
+  const ec = ((Gacha.ELEMENT_COLORS || {})[f && f.element]) || def.color || '#8b8bff';
+  const name = f ? f.name : b.title;
+  const click = f && b.kind !== 'weapon';
   let when;
   if (b.start && b.end) {
     const approx = b.approx ? '~' : '';
@@ -87,35 +136,263 @@ function bannerCardHtml(b, mode, now) {
       when = `<div class="gx-when"><span>${shortDate(b.start)} – ${shortDate(b.end)}</span><b>starts in <span data-cd="${b.start}">${approx}${Gacha.fmtDuration(b.start - now)}</span></b></div>`;
     }
   } else when = '<div class="gx-when"><span>Dates not announced yet</span></div>';
-  const faces = b.featured.length ? `<div class="gx-faces">${b.featured.map(faceHtml).join('')}</div>` : '';
-  const art = b.image
-    ? `<div class="gx-art"><img src="${esc(b.image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-hide-self></div>`
-    : `<div class="gx-art plain">${faces}</div>`;
-  return `<article class="gx-banner ${b.kind}${b.image ? ' has-img' : ''}">
-    ${art}
-    <div class="gx-binfo">
-      <div class="gx-tags"><span class="gx-tag">${KIND_LABEL[b.kind] || 'Banner'}</span>${b.version ? `<span class="gx-tag soft">v${esc(b.version)}</span>` : ''}</div>
-      <h4>${esc(head)}</h4>
-      ${b.featured.length && b.title && b.title !== head && b.title !== names.join(' & ') ? `<div class="gx-sub">${esc(b.title)}</div>` : ''}
-      ${b.image && faces ? faces : ''}
-      ${b.extras && b.extras.length ? `<div class="gx-four">4★ ${b.extras.map((x) => esc(x.name)).join(', ')}</div>` : ''}
+  const sub = f ? (f.sub || (b.title && b.title !== f.name ? b.title : '')) : '';
+  // A full picture that fails to load falls back to the cut-out (splashAlt, drawn as a cut-out), then to the icon
+  const alt = f && f.splash && f.splashAlt && f.splashAlt !== f.splash ? f.splashAlt : '';
+  const fb = alt || (f && f.icon && art !== f.icon ? f.icon : '');
+  const img = art
+    ? `<img class="gx-fc-art" src="${esc(art)}" ${fb ? `data-fallback="${esc(fb)}"${alt ? ' data-fallback-fit="fit-cutout"' : ''}` : 'data-hide-self'} alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">`
+    : '';
+  const sp = fit === 'fit-cover' && f && /^\d{1,3}% \d{1,3}%$/.test(f.splashPos || '') ? `;--sp:${f.splashPos}` : '';
+  return `<article class="gx-fc ${b.kind} ${mode} ${fit}${click ? ' is-click' : ''}" data-per="${per}" style="grid-column:span ${12 / per};--ec:${esc(ec)}${sp}"${click ? ` data-gchar="${esc(f.name)}" role="button" tabindex="0" title="Tier and builds"` : ''}>
+    ${img}
+    <div class="gx-fc-shade"></div>
+    <div class="gx-fc-info">
+      <div class="gx-tags"><span class="gx-tag">${esc(b.kind === 'weapon' && def.weaponLabel ? def.weaponLabel.replace(/s$/, '') : KIND_LABEL[b.kind] || 'Banner')}</span>${b.version ? `<span class="gx-tag soft">v${esc(b.version)}</span>` : ''}${f && f.element ? `<span class="gx-tag el">${esc(f.element)}</span>` : ''}</div>
+      ${f ? `<div class="gx-stars">${'★'.repeat(f.rarity || 5)}</div>` : ''}
+      <h4>${esc(name)}</h4>
+      ${sub ? `<div class="gx-sub">${esc(sub)}</div>` : ''}
+      ${per <= 2 && b.extras && b.extras.length ? `<div class="gx-four">4★ ${b.extras.map((x) => esc(x.name)).join(', ')}</div>` : ''}
       ${when}
     </div>
   </article>`;
 }
 
+function gxGroupHtml(label, entries, mode, now, key) {
+  if (!entries.length) return '';
+  const spans = gxSpans(entries.length);
+  return `<div class="gx-group-label">${esc(label)}</div>
+    <div class="gx-cards" style="--n:${entries.length}">${entries.map((e, i) => gxCardHtml(e, mode, now, spans[i], key)).join('')}</div>`;
+}
+
 function bannerSectionHtml(key, now) {
   const d = gBanners(key);
   if (!d) return `<div class="gx-empty">${gachaRefreshing ? 'Looking up the banners…' : 'The banners could not be loaded yet. Check your connection and press Refresh.'}</div>`;
-  const order = { char: 0, weapon: 1, chronicled: 2 };
-  const sorted = (list) => list.slice().sort((a, b) => (order[a.kind] ?? 3) - (order[b.kind] ?? 3));
-  const cards = (list, mode) => `<div class="gx-banners">${sorted(list).map((b) => bannerCardHtml(b, mode, now)).join('')}</div>`;
+  const def = Gacha.GAMES[key] || {};
+  const section = (list, mode) => {
+    const e = gxEntries(list);
+    return gxGroupHtml('Characters', e.chars, mode, now, key) + gxGroupHtml(def.weaponLabel || 'Weapons', e.weapons, mode, now, key);
+  };
   const next = d.next || [];
   return `
     <h3 class="gx-h">Current banner</h3>
-    ${d.current.length ? cards(d.current, 'now') : '<div class="gx-empty">Nothing is running right now.</div>'}
+    ${d.current.length ? section(d.current, 'now') : '<div class="gx-empty">Nothing is running right now.</div>'}
     <h3 class="gx-h">Next banner</h3>
-    ${next.length ? cards(next, 'next') : '<div class="gx-empty">The next banner has not been announced yet. It shows up here as soon as it is.</div>'}`;
+    ${next.length ? section(next, 'next') : '<div class="gx-empty">The next banner has not been announced yet. It shows up here as soon as it is.</div>'}`;
+}
+
+// ----- Backdrop: soft colour blobs, the version's key art, a big faint version number -----
+// The random picks are kept so the colours do not jump on every render(); they are re-rolled when the game changes or the page is entered.
+let gxBgRoll = null;
+let gxPopToken = 0;
+
+function gxBgHtml(key, def, d, entered) {
+  if (!gxBgRoll || gxBgRoll.key !== key || entered) {
+    const pal = (def.palette && def.palette.length ? def.palette : [def.color]).slice();
+    for (let i = pal.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pal[i], pal[j]] = [pal[j], pal[i]]; }
+    const pos = () => `${5 + Math.round(Math.random() * 85)}%`;
+    gxBgRoll = { key, c: [pal[0], pal[1 % pal.length], pal[2 % pal.length]], p: [pos(), `${8 + Math.round(Math.random() * 12)}%`, pos(), `${42 + Math.round(Math.random() * 16)}%`, pos(), `${80 + Math.round(Math.random() * 12)}%`] }; // y spread top / middle / bottom so the whole page is coloured
+  }
+  const r = gxBgRoll;
+  let art = d && d.art;
+  if (!art && d) {
+    const ch = gxEntries(d.current).chars.find((e) => e.f && e.f.splash && e.f.splashFit === 'cover');
+    art = ch ? ch.f.splash : (d.current.find((x) => x.image) || {}).image;
+  }
+  const vars = `--c1:${esc(r.c[0])};--c2:${esc(r.c[1])};--c3:${esc(r.c[2])};--x1:${r.p[0]};--y1:${r.p[1]};--x2:${r.p[2]};--y2:${r.p[3]};--x3:${r.p[4]};--y3:${r.p[5]}`;
+  return `<div class="gx-bg" style="${vars}" aria-hidden="true">
+    ${art ? `<div class="gx-bg-art" style="background-image:${esc(cssUrl(art))}"></div>` : ''}
+    <div class="gx-bg-glow"></div>
+    <div class="gx-bg-mark">${esc((d && d.version) || def.name || '')}</div>
+  </div>`;
+}
+
+// ----- Character popup (in the shared #modal) -----
+const gxTierClass = (label) => `t${String(label).toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+
+function gxFindEntry(key, name) {
+  const d = gBanners(key);
+  if (!d) return null;
+  for (const list of [d.current, d.next || []]) {
+    const hit = gxEntries(list).chars.find((e) => e.f && e.f.name === name);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+function gxBuildHtml(r, key, name) {
+  const def = Gacha.GAMES[key] || {};
+  const search = `<button class="gx-link search" data-gurl="${esc(`https://www.google.com/search?q=${encodeURIComponent(`${def.name} ${name} build`)}`)}">Search builds <i>⌕</i></button>`;
+  if (!r || !r.ok) {
+    const msg = {
+      unsupported: 'No build details for this game.',
+      off: 'Build look-ups are off (Settings → Advanced).',
+      notfound: 'Prydwen.gg has no page for this character yet.',
+      offline: "Couldn't reach Prydwen.gg. Check your connection.",
+    }[r && r.reason] || "Couldn't load the build details.";
+    return `<p class="gx-fine">${esc(msg)}</p><div>${search}</div>`;
+  }
+  const list = (arr, fmt) => arr && arr.length ? `<ul>${arr.map(fmt).join('')}</ul>` : '';
+  // Pick rate from Prydwen ("88.87%"): a number plus a thin bar, so the best choice stands out at a glance
+  const pct = (p) => {
+    const n = parseFloat(p);
+    return p ? `<span class="gx-pct"><i>${esc(p)}</i>${Number.isFinite(n) ? `<u style="width:${clamp(n, 0, 100)}%"></u>` : ''}</span>` : '';
+  };
+  // Icons and 2-piece / 4-piece text come from the main process (StarRailRes); with the old shape they are simply missing
+  const ic = (src) => (src ? `<img class="gx-ic" src="${esc(src)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-hide-self>` : '<span class="gx-ic ph"></span>');
+  // One row: icon(s), name(s), pick rate. A row with effect text gets a tooltip (see gxTipShow). Every game sends the same shape.
+  const row = (x) => {
+    const ps = x.parts || [];
+    const fx = ps.filter((p) => p.fx && p.fx.length).map((p) => ({ n: p.name, fx: p.fx }));
+    const pcs = ps.length === 1 ? ps[0].fx.filter((f) => /-piece$/.test(f[0])) : [];
+    const pieces = ps.length > 1 ? '2 + 2 piece' : pcs.length ? `${pcs.map((f) => f[0].replace('-piece', '')).join(' / ')} piece` : '';
+    const small = [x.sub, pieces].filter(Boolean).join(' · ');
+    return `<li class="gx-set${fx.length ? ' has-fx' : ''}"${fx.length ? ` data-fx="${esc(JSON.stringify(fx))}" tabindex="0"` : ''}>
+      <span class="gx-ics">${ps.map((p) => (p.icon || !ps.some((q) => q.icon) ? ic(p.icon) : '')).join('')}</span>
+      <span class="gx-nm"><span>${ps.map((p) => esc(p.name)).join(' <em>+</em> ')}</span>${small || fx.length ? `<small>${esc(small)}</small>` : ''}</span>
+      ${pct(x.pct)}</li>`;
+  };
+  const tiers = (r.tiers || []).filter((t) => t.ratings && t.ratings.length).map((t) => `<div class="gx-pop-tiers" title="${esc(t.role || '')}">${t.role ? `<span class="gx-fine">${esc(t.role)}</span>` : ''}${t.ratings.map(([l, v]) => `<div class="gx-tier ${gxTierClass(v)}"><small>${esc(l)}</small><b>${esc(v)}</b></div>`).join('')}</div>`).join('');
+  const sections = (r.sections || []).filter((s) => s.rows && s.rows.length).map((s) => `<div class="gx-pop-row"><h5>${esc(s.title)}</h5>${list(s.rows, row)}</div>`).join('');
+  const stats = (r.stats || []).filter((x) => x[1]);
+  return `${tiers}
+    ${sections}
+    ${stats.length ? `<dl class="gx-pop-stats">${stats.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : ''}
+    ${!tiers && !sections && !stats.length ? '<p class="gx-fine">Prydwen.gg has no build details for this character yet.</p>' : ''}
+    <div>${search}</div>`;
+}
+
+// ----- Hover trailer and relic tooltip -----
+// The official trailer plays muted behind a card while the mouse rests on it. The video id comes from the game's
+// wiki (main process, cached); an embed that cannot play just never fades in, and the card looks as before.
+const gxTrailerCache = new Map(); // "key|name" -> Promise<id or ''>
+let gxVid = null; // the one video that is playing: { host, timer, frame }
+
+function gxTrailerId(key, name) {
+  const k = `${key}|${name}`;
+  if (!gxTrailerCache.has(k)) {
+    let p;
+    try { p = Promise.resolve(window.api.gachaTrailer(key, name)).then((r) => (r && r.ok ? r.id : ''), () => ''); } catch { p = Promise.resolve(''); }
+    gxTrailerCache.set(k, p);
+  }
+  return gxTrailerCache.get(k);
+}
+
+function gxTrailerOk() {
+  const b = document.body.classList;
+  return !b.contains('perf') && !b.contains('no-anim') && !(prefs.settings && prefs.settings.gachaBuilds === false) && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
+
+function gxTrailerStop() {
+  if (!gxVid) return;
+  clearTimeout(gxVid.timer);
+  clearTimeout(gxVid.giveUp);
+  if (gxVid.off) gxVid.off();
+  if (gxVid.frame) gxVid.frame.remove();
+  gxVid = null;
+}
+
+// host: the element to draw into (it needs position:relative/absolute and overflow hidden)
+function gxTrailerStart(host, key, name, delay = 550) {
+  gxTrailerStop();
+  if (!gxTrailerOk()) return;
+  const me = { host, frame: null, timer: 0 };
+  gxVid = me;
+  me.timer = setTimeout(async () => {
+    const id = await gxTrailerId(key, name);
+    if (gxVid !== me || !id || !host.isConnected) return;
+    const w = host.clientWidth, h = host.clientHeight;
+    // Cover the host: a 16:9 picture scaled so both sides are filled, centred
+    const fw = Math.max(w, (h * 16) / 9), fh = (fw * 9) / 16;
+    const f = document.createElement('iframe');
+    f.className = 'gx-vid';
+    f.setAttribute('allow', 'autoplay; encrypted-media');
+    f.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+    f.tabIndex = -1;
+    f.style.cssText = `width:${Math.ceil(fw)}px;height:${Math.ceil(fh)}px`;
+    f.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&mute=1&controls=0&disablekb=1&fs=0&iv_load_policy=3&rel=0&playsinline=1&modestbranding=1&start=8&loop=1&enablejsapi=1&playlist=${encodeURIComponent(id)}`;
+    // The frame's own load event also fires for YouTube's error page, so wait for the player to say it is playing
+    // (and drop the frame if it reports an error or says nothing for a while)
+    const onMsg = (ev) => {
+      if (ev.source !== f.contentWindow) return;
+      let d; try { d = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data; } catch { return; }
+      if (!d) return;
+      if (d.event === 'onError') return gxTrailerStop();
+      const state = d.event === 'onStateChange' ? d.info : d.info && d.info.playerState;
+      if (state === 1 && gxVid === me) f.classList.add('on');
+    };
+    window.addEventListener('message', onMsg);
+    me.off = () => window.removeEventListener('message', onMsg);
+    f.addEventListener('load', () => { try { f.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), '*'); } catch { /* frame already gone */ } });
+    me.giveUp = setTimeout(() => { if (gxVid === me && !f.classList.contains('on')) gxTrailerStop(); }, 9000);
+    me.frame = f;
+    host.appendChild(f);
+  }, delay);
+}
+
+// One floating tip for every relic row: the popup scrolls, so a tip inside it would be clipped
+let gxTipEl = null;
+function gxTipShow(li) {
+  let fx;
+  try { fx = JSON.parse(li.dataset.fx || '[]'); } catch { return; }
+  if (!fx.length) return;
+  if (!gxTipEl) { gxTipEl = document.createElement('div'); gxTipEl.className = 'gx-tip'; document.body.appendChild(gxTipEl); }
+  gxTipEl.innerHTML = fx.map((p) => `<div class="gx-tip-set"><b>${esc(p.n)}</b>${p.fx.map(([l, t]) => `<p><span>${esc(l)}</span>${esc(t)}</p>`).join('')}</div>`).join('');
+  gxTipEl.hidden = false;
+  const r = li.getBoundingClientRect();
+  const tw = gxTipEl.offsetWidth, th = gxTipEl.offsetHeight;
+  let x = r.left + r.width / 2 - tw / 2;
+  let y = r.top - th - 8;
+  if (y < 8) y = r.bottom + 8; // no room above: go below
+  x = clamp(x, 8, window.innerWidth - tw - 8);
+  gxTipEl.style.left = `${Math.round(x)}px`;
+  gxTipEl.style.top = `${Math.round(y)}px`;
+}
+function gxTipHide() { if (gxTipEl) gxTipEl.hidden = true; }
+
+function gxOpenChar(key, name) {
+  const def = Gacha.GAMES[key] || {};
+  const hit = gxFindEntry(key, name);
+  const f = (hit && hit.f) || { name };
+  const b = hit && hit.b;
+  const ec = ((Gacha.ELEMENT_COLORS || {})[f.element]) || def.color || '#8b8bff';
+  // The header wants the character on its own (the wide key art has the name written on it already)
+  const art = f.splashAlt || f.splash || f.icon || '';
+  const on =!prefs.settings || prefs.settings.gachaBuilds !== false;
+  const token = ++gxPopToken;
+  gxTrailerStop(); // the card's trailer ends when the popup opens
+  gxTipHide();
+  modalBody.innerHTML = `<div class="gx-pop" style="--gc:${esc(def.color || '#8b8bff')};--ec:${esc(ec)}">
+    <div class="gx-pop-head" data-gk="${esc(key)}" data-gn="${esc(name)}">
+      ${art ? `<img class="gx-pop-art" src="${esc(art)}" ${f.icon && art !== f.icon ? `data-fallback="${esc(f.icon)}"` : 'data-hide-self'} alt="" decoding="async" referrerpolicy="no-referrer">` : ''}
+      <div>
+        <div class="gx-tags"><span class="gx-tag">${esc(def.name || '')}</span>${b && b.version ? `<span class="gx-tag soft">v${esc(b.version)}</span>` : ''}${f.element ? `<span class="gx-tag el">${esc(f.element)}</span>` : ''}</div>
+        <h3>${esc(name)}</h3>
+        ${f.sub ? `<div class="gx-sub">${esc(f.sub)}</div>` : ''}
+      </div>
+      <button class="gx-pop-x" data-gpop-close aria-label="Close">×</button>
+    </div>
+    <div class="gx-pop-body">${on ? '<div class="gx-pop-load"><div class="spinner"></div>Looking up builds…</div>' : gxBuildHtml({ ok: false, reason: 'off' }, key, name)}</div>
+    <div class="gx-pop-foot"><span class="gx-fine"${on ? '' : ' hidden'}>From Prydwen.gg</span></div>
+  </div>`;
+  unfade(modal);
+  const x = $('[data-gpop-close]', modalBody);
+  if (x) x.focus();
+  if (!on) return;
+  const done = (r) => {
+    if (token !== gxPopToken || modal.hidden) return; // closed, or another character opened since: do not paint stale data
+    const body = $('.gx-pop-body', modalBody);
+    const foot = $('.gx-pop-foot', modalBody);
+    if (!body || !foot) return;
+    body.innerHTML = gxBuildHtml(r, key, name);
+    if (r && r.ok) {
+      const when = r.updated ? ` · updated ${shortDate(r.updated)}` : '';
+      foot.innerHTML = `<span class="gx-fine">From ${esc(r.source || 'Prydwen.gg')}${when}</span>${r.url ? `<button class="gx-link" data-gurl="${esc(r.url)}">Open on Prydwen <i>↗</i></button>` : ''}`;
+    } else foot.innerHTML = '';
+  };
+  let p;
+  try { p = Promise.resolve(window.api.gachaBuild(key, name)); } catch { p = Promise.resolve({ ok: false, reason: 'offline' }); }
+  p.then(done, () => done({ ok: false, reason: 'offline' }));
 }
 
 // ----- Pull planner -----
@@ -173,7 +450,7 @@ function infoHtml(key, def, region, now) {
 
 // ----- The full page -----
 function renderGacha() {
-  const list = gachaGames();
+  const list = gachaAllGames();
   const region = prefs.settings.region;
   const regionSelect = `<select data-gregion>${Object.entries(Gacha.REGIONS).map(([k, r]) => `<option value="${k}"${k === region ? ' selected' : ''}>${r.label}</option>`).join('')}</select>`;
   if (!list.length) {
@@ -190,10 +467,11 @@ function renderGacha() {
   const d = gBanners(key);
   const live = gachaLive(key);
   const b = Gacha.bannerInfo(st, key, now, live);
-  const heroImg = d && (d.current.find((x) => x.kind === 'char' && x.image) || {}).image;
+  const heroImg = d && (d.art || (d.current.find((x) => x.kind === 'char' && x.image) || {}).image);
+  const entered = !content.querySelector('.gx-bg'); // the page was just opened (or the game list was empty before)
 
   const tabs = list.map((g) => `<button class="gx-tab${g.key === key ? ' active' : ''}" data-gsel="${g.key}" style="--gc:${g.def.color}">
-    <span class="gx-tab-art">${g.item.cover ? `<img src="${esc(g.item.cover)}" alt="" data-hide-self>` : ''}</span>${esc(g.def.name)}${isRunning(g.item.id) ? ' <span class="live-dot"></span>' : ''}</button>`).join('');
+    <span class="gx-tab-art">${(g.item && g.item.cover) || gachaFaceIcon(g.key) ? `<img src="${esc((g.item && g.item.cover) || gachaFaceIcon(g.key))}" alt="" data-hide-self>` : ''}</span>${esc(g.def.name)}${g.item && isRunning(g.item.id) ? ' <span class="live-dot"></span>' : ''}</button>`).join('');
 
   const stamina = sv.known ? `
     <div class="s-top"><div class="s-val"><b data-sv-key="${key}" data-sv-kind="val">${sv.value}</b><span>/ ${sv.max}</span></div>
@@ -217,11 +495,14 @@ function renderGacha() {
     </div>`;
   }).join('');
 
-  const status = isRunning(item.id) ? `<span class="live-dot"></span> Playing now · <span data-since="${runningMap()[item.id]}"></span>`
+  const cover = (item && item.cover) || gachaFaceIcon(key);
+  const status = !item ? 'Not in your library'
+    : isRunning(item.id) ? `<span class="live-dot"></span> Playing now · <span data-since="${runningMap()[item.id]}"></span>`
     : prefs.recents[item.id] ? `Last played ${timeAgo(prefs.recents[item.id])}` : 'Not played yet';
   const updated = d && d.at ? `Banners updated ${timeAgo(d.at)}` : '';
 
   content.innerHTML = `
+    ${gxBgHtml(key, def, d, entered)}
     <div class="gx-top"><h1 class="page-title">Gacha helper</h1>
       <div class="gx-top-side"><span class="gx-upd">${updated}</span><button class="mini-btn" data-gop="refreshBanners"${gachaRefreshing ? ' disabled' : ''}>${gachaRefreshing ? 'Refreshing…' : '↻ Refresh'}</button>Server ${regionSelect}</div></div>
     <div class="gx-tabs">${tabs}</div>
@@ -229,12 +510,12 @@ function renderGacha() {
       <header class="gx-hero">
         <div class="gx-hero-bg"${heroImg ? ` style="background-image:${esc(cssUrl(heroImg))}"` : ''}></div>
         <div class="gx-hero-in">
-          <div class="gx-cover">${item.cover ? `<img src="${esc(item.cover)}" alt="" data-hide-self>` : ''}</div>
+          <div class="gx-cover">${cover ? `<img src="${esc(cover)}" alt="" data-hide-self>` : ''}</div>
           <div class="gx-hero-txt">
             <h2>${esc(def.name)}${d && d.version ? `<span class="gx-ver">Version ${esc(d.version)}</span>` : ''}</h2>
-            <div class="g-sub">${status}${prefs.playtime && prefs.playtime[item.id] ? ` · ${fmtHours(playSeconds(item.id))} tracked` : ''}</div>
+            <div class="g-sub">${status}${item && prefs.playtime && prefs.playtime[item.id] ? ` · ${fmtHours(playSeconds(item.id))} tracked` : ''}</div>
           </div>
-          <button class="play-btn" data-gplay="${esc(item.id)}">${PLAY} Play</button>
+          ${item ? `<button class="play-btn" data-gplay="${esc(item.id)}">${PLAY} Play</button>` : ''}
         </div>
         <div class="gx-times">
           <div class="gx-time"><small>Daily reset</small><b data-cd="${next.daily}" data-reset>${Gacha.fmtDuration(next.daily - now)}</b></div>
@@ -272,12 +553,80 @@ async function gachaRefresh() {
 }
 
 function initGachaUi() {
+  // The popup lives in #modal, outside #content, so it needs its own listener
+  modalBody.addEventListener('click', (e) => {
+    if (!e.target.closest('.gx-pop')) return;
+    const url = e.target.closest('[data-gurl]');
+    if (url) return window.api.openExternal(url.dataset.gurl);
+    if (e.target.closest('[data-gpop-close]')) closeModal();
+  });
+  // Relic tooltips and the header trailer inside the popup
+  modalBody.addEventListener('pointerover', (e) => {
+    const set = e.target.closest && e.target.closest('.gx-set.has-fx');
+    if (set && !set.contains(e.relatedTarget)) gxTipShow(set);
+    const head = e.target.closest && e.target.closest('.gx-pop-head[data-gk]');
+    if (head && !head.contains(e.relatedTarget) && e.pointerType !== 'touch') gxTrailerStart(head, head.dataset.gk, head.dataset.gn, 700);
+  });
+  modalBody.addEventListener('pointerout', (e) => {
+    const set = e.target.closest && e.target.closest('.gx-set.has-fx');
+    if (set && !set.contains(e.relatedTarget)) gxTipHide();
+    const head = e.target.closest && e.target.closest('.gx-pop-head[data-gk]');
+    if (head && !head.contains(e.relatedTarget)) gxTrailerStop();
+  });
+  modalBody.addEventListener('focusin', (e) => { const set = e.target.closest && e.target.closest('.gx-set.has-fx'); if (set) gxTipShow(set); });
+  modalBody.addEventListener('focusout', gxTipHide);
+
+  // Trailer behind a banner card while the mouse rests on it
+  content.addEventListener('pointerover', (e) => {
+    if (e.pointerType === 'touch') return;
+    const card = e.target.closest && e.target.closest('.gx-fc[data-gchar]');
+    if (!card || card.contains(e.relatedTarget)) return;
+    const gk = card.closest('[data-gkey]');
+    if (gk) gxTrailerStart(card, gk.dataset.gkey, card.dataset.gchar);
+  });
+  content.addEventListener('pointerout', (e) => {
+    const card = e.target.closest && e.target.closest('.gx-fc[data-gchar]');
+    if (card && !card.contains(e.relatedTarget) && gxVid && gxVid.host === card) gxTrailerStop();
+  });
+
+  // Backdrop height: the sticky .gx-bg needs the visible height of the scrolling page in pixels
+  const setVh = () => content.style.setProperty('--gx-vh', `${content.clientHeight}px`);
+  setVh();
+  if (window.ResizeObserver) new ResizeObserver(setVh).observe(content);
+
+  // Card tilt (3D hover): delegated, because renderGacha rebuilds the cards. Throttled to one update per frame.
+  let gxTiltCard = null, gxTiltRaf = 0, gxTiltEv = null;
+  const gxTiltOff = (card) => { if (!card) return; for (const v of ['--rx', '--ry', '--px', '--py']) card.style.removeProperty(v); };
+  const gxTiltOn = () => !document.body.classList.contains('no-anim') && !document.body.classList.contains('perf') && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const gxTiltApply = () => {
+    gxTiltRaf = 0;
+    const e = gxTiltEv, card = gxTiltCard;
+    if (!e || !card || !card.isConnected) return;
+    const r = card.getBoundingClientRect();
+    const x = clamp((e.clientX - r.left) / r.width, 0, 1), y = clamp((e.clientY - r.top) / r.height, 0, 1);
+    card.style.setProperty('--ry', `${((x - 0.5) * 14).toFixed(1)}deg`);
+    card.style.setProperty('--rx', `${((0.5 - y) * 14).toFixed(1)}deg`);
+    card.style.setProperty('--px', ((x - 0.5) * 2).toFixed(2));
+    card.style.setProperty('--py', ((y - 0.5) * 2).toFixed(2));
+  };
+  content.addEventListener('pointermove', (e) => {
+    if (e.pointerType === 'touch' || !gxTiltOn()) return;
+    const card = e.target.closest && e.target.closest('.gx-fc.is-click');
+    if (card !== gxTiltCard) { gxTiltOff(gxTiltCard); gxTiltCard = card; }
+    if (!card) return;
+    gxTiltEv = e;
+    if (!gxTiltRaf) gxTiltRaf = requestAnimationFrame(gxTiltApply);
+  });
+  content.addEventListener('pointerleave', () => { gxTiltOff(gxTiltCard); gxTiltCard = null; });
+
   content.addEventListener('click', (e) => {
     const t = e.target;
     const play = t.closest('[data-gplay]');
     if (play) return launch(play.dataset.gplay);
     const url = t.closest('[data-gurl]');
     if (url) return window.api.openExternal(url.dataset.gurl);
+    const ch = t.closest('[data-gchar]');
+    if (ch) { const gk = ch.closest('[data-gkey]'); if (gk) return gxOpenChar(gk.dataset.gkey, ch.dataset.gchar); }
     const tab = t.closest('.gx-tab[data-gsel]');
     if (tab) { gachaSel = tab.dataset.gsel; return render(); }
     const chip = t.closest('.g-chip[data-gsel]'); // a card on Home: open the page on that game
@@ -314,8 +663,14 @@ function initGachaUi() {
   });
 
   content.addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter') return;
     const t = e.target;
+    if ((e.key === 'Enter' || e.key === ' ') && t.matches && t.matches('[data-gchar]')) {
+      e.preventDefault();
+      const gk = t.closest('[data-gkey]');
+      if (gk) gxOpenChar(gk.dataset.gkey, t.dataset.gchar);
+      return;
+    }
+    if (e.key !== 'Enter') return;
     const card = t.closest && t.closest('[data-gkey]');
     if (!card) return;
     if (t.matches('[data-gstamina]') && t.value !== '') gachaOp(card.dataset.gkey, 'stamina', { value: Number(t.value) });

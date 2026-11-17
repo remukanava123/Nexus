@@ -438,7 +438,12 @@ document.addEventListener('error', (e) => {
   if (img.id === 'lbImg') { if (img.dataset.thumb && img.src !== img.dataset.thumb) img.src = img.dataset.thumb; return; }
   if ('hide' in img.dataset) { img.closest('.shot')?.remove(); return; }
   if ('hideSelf' in img.dataset) { img.remove(); return; }
-  if (img.dataset.fallback) { img.src = img.dataset.fallback; img.dataset.fallback = ''; return; }
+  if (img.dataset.fallback) {
+    // A Gacha card's full picture fell back to its cut-out, which needs the cut-out layout rather than the cropped one
+    const card = img.dataset.fallbackFit && img.closest('.gx-fc');
+    if (card) card.classList.replace('fit-cover', img.dataset.fallbackFit);
+    img.src = img.dataset.fallback; img.dataset.fallback = ''; return;
+  }
   const tpl = img.nextElementSibling;
   if (img.classList.contains('art') && tpl && tpl.tagName === 'TEMPLATE') { img.replaceWith(tpl.content.cloneNode(true)); tpl.remove(); hydrateIcons(); return; }
   if (img.closest('.slot-card') && tpl && tpl.tagName === 'TEMPLATE') { img.replaceWith(tpl.content.cloneNode(true)); tpl.remove(); return; }

@@ -1,5 +1,11 @@
 // What's new, shown once after Nexus is updated. Add an entry for each version you release (the key is the version in package.json).
 module.exports = {
+  '1.3.6': {
+    title: 'Performance fixes, bug fixes and typo changes',
+    items: [
+      ['🔧', 'Performance fixes, bug fixes and typo changes', 'Performance fixes, bug fixes and typo changes.'],
+    ],
+  },
   '1.3.5': {
     title: 'Proper Stadium support, and a smoother Nexus',
     items: [
