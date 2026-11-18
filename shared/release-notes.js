@@ -1,5 +1,17 @@
 // What's new, shown once after Nexus is updated. Add an entry for each version you release (the key is the version in package.json).
 module.exports = {
+  '1.3.7': {
+    title: 'A fresh layout',
+    items: [
+      ['🧭', 'A slimmer Nexus', 'A narrow icon rail replaces the wide sidebar (hover an icon for its name), and the search bar moves up into the title bar. Prefer the old look? Settings → Sidebar → Layout → Classic.'],
+      ['🏠', 'A new Home', 'A big wide banner for the game you played last, then the latest news from the games you picked and your last five Overwatch matches, with little reminders such as a map you keep losing on.'],
+      ['🎮', 'Games, with quick filters', 'Bigger covers, and one-click chips for Favourites, Needs update and Played lately.'],
+      ['🖼️', 'A page worth opening', 'Each game’s page has a large blurred backdrop of its art, and tabs for Overview, Clips, News and Achievements that only show up when they have something in them.'],
+      ['📊', 'Stats that build themselves', 'Bars grow up from the floor, the other bars fill in, and the numbers count up when you open the page.'],
+      ['⚙️', 'Tidier Settings', 'A list of topics on the left and one topic at a time on the right.'],
+      ['✨', 'Covers that rise in', 'Covers appear one after another with a little spring. Performance mode turns all of the motion off.'],
+    ],
+  },
   '1.3.6': {
     title: 'Performance fixes, bug fixes and typo changes',
     items: [

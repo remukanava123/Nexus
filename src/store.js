@@ -18,7 +18,7 @@ const DEFAULT_SETTINGS = {
   cardMeta: 'hours', coverShape: 'portrait', hoverEffect: 'lift', cardGap: 18, fontFamily: 'segoe',
   showFavStar: true, showRunningBadge: true,
   // Sidebar
-  sidebarStyle: 'full', sidebarColors: true, navApps: true, navWeb: true, navFavorites: true, navStats: true, navBarca: true, navNews: true, navClips: true, clipsFolder: '',
+  layout: 'new', sidebarStyle: 'full', sidebarColors: true, navApps: true, navWeb: true, navFavorites: true, navStats: true, navBarca: true, navNews: true, navClips: true, clipsFolder: '',
   // Home page sections
   greeting: true, homeHero: true, homeGameOfDay: true, homeRecent: true, homeFavorites: true, homeMostPlayed: true,
   homeBacklog: true, homeGacha: true, homeGames: true, homeApps: true, homeWeb: true, rowCount: 12,

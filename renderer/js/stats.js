@@ -111,9 +111,9 @@ function renderStats() {
   const days = Array.from({ length: 14 }, (_, i) => ({ t0: daysAgo(13 - i), t1: daysAgo(12 - i), sec: 0 }));
   for (const x of sessions) { const d = days.find((d) => x.s >= d.t0 && x.s < d.t1); if (d) d.sec += (x.e - x.s) / 1000; }
   const maxDay = Math.max(...days.map((d) => d.sec), 1);
-  const bars = days.map((d) => {
+  const bars = days.map((d, i) => {
     const date = new Date(d.t0);
-    return `<div class="bar-col" title="${date.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}: ${fmtDur(d.sec)}">
+    return `<div class="bar-col" style="--k:${i}" title="${date.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}: ${fmtDur(d.sec)}">
       <div class="bar-val">${d.sec ? fmtHours(d.sec) : ''}</div>
       <div class="bar" style="height:${Math.max(d.sec ? 6 : 2, (d.sec / maxDay) * 100)}%"></div>
       <div class="bar-label${d.t0 === today0 ? ' today' : ''}">${date.toLocaleDateString(undefined, { weekday: 'narrow' })}</div></div>`;
@@ -130,7 +130,7 @@ function renderStats() {
   }
   const maxHour = Math.max(...hours, 1);
   const peak = hours.indexOf(Math.max(...hours));
-  const hourBars = hours.map((s, h) => `<div class="bar-col mini" title="${pad2(h)}:00 – ${fmtDur(s)}"><div class="bar" style="height:${Math.max(s ? 8 : 3, (s / maxHour) * 100)}%"></div>${h % 6 === 0 ? `<div class="bar-label">${pad2(h)}</div>` : '<div class="bar-label">&nbsp;</div>'}</div>`).join('');
+  const hourBars = hours.map((s, h) => `<div class="bar-col mini" style="--k:${h}" title="${pad2(h)}:00 – ${fmtDur(s)}"><div class="bar" style="height:${Math.max(s ? 8 : 3, (s / maxHour) * 100)}%"></div>${h % 6 === 0 ? `<div class="bar-label">${pad2(h)}</div>` : '<div class="bar-label">&nbsp;</div>'}</div>`).join('');
 
   // Top games
   const top = perGame.slice(0, 8);
@@ -162,7 +162,7 @@ function renderStats() {
   const dowOrder = prefs.settings.weekStart === 'sunday' ? [0, 1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5, 6, 0]; // Settings → Playtime → Week starts on
   const dowNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const maxDow = Math.max(...dowSec, 1);
-  const dowBars = dowOrder.map((d) => `<div class="bar-col" title="${dowNames[d]}: ${fmtDur(dowSec[d])}"><div class="bar-val">${dowSec[d] ? fmtHours(dowSec[d]) : ''}</div><div class="bar" style="height:${Math.max(dowSec[d] ? 6 : 2, (dowSec[d] / maxDow) * 100)}%"></div><div class="bar-label">${dowNames[d].slice(0, 3)}</div></div>`).join('');
+  const dowBars = dowOrder.map((d, i) => `<div class="bar-col" style="--k:${i}" title="${dowNames[d]}: ${fmtDur(dowSec[d])}"><div class="bar-val">${dowSec[d] ? fmtHours(dowSec[d]) : ''}</div><div class="bar" style="height:${Math.max(dowSec[d] ? 6 : 2, (dowSec[d] / maxDow) * 100)}%"></div><div class="bar-label">${dowNames[d].slice(0, 3)}</div></div>`).join('');
   const bestDow = dowSec.indexOf(Math.max(...dowSec));
 
   // Per-game table

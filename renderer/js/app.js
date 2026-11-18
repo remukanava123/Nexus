@@ -155,12 +155,15 @@ function renderHome() {
       </div>`).join('');
   }
 
+  const fresh = s.layout !== 'classic';
+  let heroHtml = '', gotdHtml = '';
   if (s.homeHero && heroItem) {
     const bg = heroItem.cover ? `style="background-image:${esc(cssUrl(heroItem.cover))}"` : '';
     const sec = totalSeconds(heroItem.id);
-    html += `
-      <div class="hero" style="--src: var(--${heroItem.source})">
+    heroHtml = `
+      <div class="hero${fresh ? ' wide' : ''}" style="--src: var(--${heroItem.source})">
         <div class="hero-bg" ${bg}></div>
+        ${fresh ? `<div class="hero-wide-art" data-for="${esc(heroItem.id)}"></div>` : ''}
         ${heroItem.cover ? `<div class="hero-art" ${bg}></div>` : ''}
         <div class="hero-info">
           <div class="hero-label">${recGames[0] ? `Jump back in · ${timeAgo(prefs.recents[heroItem.id])}` : 'Ready to play'}${sec >= 60 ? ` · ${playedText(heroItem.id, true)}` : ''}</div>
@@ -172,17 +175,11 @@ function renderHome() {
         </div>
       </div>`;
   }
-
-  if (s.homeGacha) {
-    const strip = gachaStripHtml();
-    if (strip) html += section('Gacha', strip, 'gacha');
-  }
-
-  if (s.homeGameOfDay && allGames.length > 3) {
+  if (!fresh && s.homeGameOfDay && allGames.length > 3) {
     const pool = allGames.filter((g) => !isRunning(g.id) && Date.now() - (prefs.recents[g.id] || 0) > 3 * DAY_MS);
     const pick = (pool.length ? pool : allGames)[daySeed() % (pool.length || allGames.length)];
     const sec = totalSeconds(pick.id);
-    html += `
+    gotdHtml = `
       <div class="gotd" style="--src: var(--${pick.source})">
         <div class="gotd-art" data-open="${esc(pick.id)}">${pick.cover ? `<img src="${esc(pick.cover)}" alt="" data-hide-self>` : ''}</div>
         <div class="gotd-main"><small>🎯 GAME OF THE DAY</small><b>${esc(nameOf(pick))}</b>
@@ -191,7 +188,36 @@ function renderHome() {
       </div>`;
   }
 
-  if (s.homeRecent && recGames.length > 1) html += section('Recently played', games(recGames.slice(1, rows + 1), 'row', (g) => timeAgo(prefs.recents[g.id])));
+  // New layout: a wide splash banner for the game you played last, then news from your games beside your last Overwatch matches
+  if (fresh) {
+    html += heroHtml;
+    const news = homeNewsHtml(), ow = homeOwHtml();
+    if (news || ow) html += `<div class="home-feed${news && ow ? '' : ' one'}">${news}${ow}</div>`;
+    if (s.homeGacha) {
+      const strip = gachaStripHtml();
+      if (strip) html += section('Gacha', strip, 'gacha');
+    }
+  } else {
+    html += heroHtml;
+    if (s.homeGacha) {
+      const strip = gachaStripHtml();
+      if (strip) html += section('Gacha', strip, 'gacha');
+    }
+    html += gotdHtml;
+  }
+
+  if (s.homeRecent && (recGames.length > 1 || fresh)) {
+    let list = recGames.slice(1);
+    let meta = (g) => timeAgo(prefs.recents[g.id]);
+    // a short history leaves the row mostly empty, so the new layout fills it up with your most played games
+    if (fresh && list.length < 6) {
+      const seen = new Set([heroItem && heroItem.id, ...list.map((g) => g.id)]);
+      const extra = allGames.filter((g) => !seen.has(g.id) && totalSeconds(g.id) >= 600).sort((a, b) => totalSeconds(b.id) - totalSeconds(a.id));
+      list = list.concat(extra);
+      const base = meta; meta = (g) => (prefs.recents[g.id] ? base(g) : playedText(g.id, true));
+    }
+    if (list.length) html += section('Recently played', games(list.slice(0, rows), 'row', meta));
+  }
 
   const favs = visible().filter((i) => isFav(i.id));
   const favGames = favs.filter((i) => i.type === 'game');
@@ -200,7 +226,7 @@ function renderHome() {
     html += section('Favourites', (favGames.length ? games(favGames, 'row') : '') + (favOther.length ? `<div style="margin-top:${favGames.length ? 18 : 0}px">${tiles(favOther)}</div>` : ''), 'favorites');
   }
 
-  if (s.homeMostPlayed) {
+  if (s.homeMostPlayed && !fresh) { // (the new layout has the ranking beside Gacha)
     const top = allGames.filter((g) => totalSeconds(g.id) >= 600).sort((a, b) => totalSeconds(b.id) - totalSeconds(a.id)).slice(0, rows);
     if (top.length >= 2) html += section('Most played', games(top, 'row', (g) => playedText(g.id, true)), 'stats');
   }
@@ -221,17 +247,121 @@ function renderHome() {
 
   if (s.homeWeb) html += section('Websites', tiles(ofType('web'), 'web'), 'web');
   content.innerHTML = html || '<div class="empty"><strong>Your home page is empty</strong>Turn some sections back on in Settings → Home page.</div>';
+  if (fresh && heroItem && s.homeHero) paintHeroArt(heroItem);
+}
+
+// A wide picture for the banner: the key art of a gacha game, else the game's first screenshot (or its header) from the web.
+// '' means there is none, and the banner keeps the blurred cover.
+const wideArt = new Map();
+async function resolveWideArt(it) {
+  if (wideArt.has(it.id)) return wideArt.get(it.id);
+  let url = '';
+  const gk = typeof Gacha !== 'undefined' && Gacha.keyFor(it);
+  const gd = gk && prefs.gachaBanners && prefs.gachaBanners[gk];
+  if (gd && gd.art) url = gd.art;
+  if (!url) {
+    try {
+      const info = await window.api.getInfo(it.id);
+      const shot = info && info.screenshots && info.screenshots[0];
+      url = (shot && (shot.full || shot.thumb)) || (info && info.header) || '';
+    } catch { /* offline */ }
+  }
+  wideArt.set(it.id, url);
+  return url;
+}
+async function paintHeroArt(it) {
+  const url = await resolveWideArt(it);
+  if (!url) return;
+  const img = new Image();
+  img.onload = () => {
+    const el = $('.hero-wide-art', content);
+    if (!el || el.dataset.for !== it.id) return; // the page changed while the picture was loading
+    el.style.backgroundImage = cssUrl(url);
+    el.classList.add('loaded');
+    el.parentElement.classList.add('has-wide');
+  };
+  img.src = url;
+}
+
+// Home (new layout): the newest news from the games picked on the News page
+let homeNewsAsked = false;
+function homeNewsHtml() {
+  if (!newsData) { if (!homeNewsAsked && !newsLoading) { homeNewsAsked = true; loadNews(false); } return ''; }
+  const rows = [];
+  for (const g of newsGameItems()) for (const n of newsData.byGame[g.id].items) rows.push({ g, n });
+  rows.sort((a, b) => (new Date(b.n.date).getTime() || 0) - (new Date(a.n.date).getTime() || 0));
+  const top = rows.slice(0, 5);
+  if (!top.length) return '';
+  return `<div class="panel home-card"><div class="home-card-head"><h3>News from your games</h3><button class="link" data-goto="news">See all</button></div>
+    ${top.map(({ g, n }) => `<a class="hn-item" data-ext="${esc(n.url)}" title="${esc(n.title)}">
+      <span class="hn-art">${g.cover ? `<img src="${esc(g.cover)}" alt="" loading="lazy" decoding="async" data-hide-self>` : ''}</span>
+      <span class="hn-main"><b>${esc(n.title)}</b><small>${esc(nameOf(g))}${n.isUpdate ? ' · Update' : ''}</small></span>
+      ${n.date ? `<small class="hn-when">${timeAgo(n.date)}</small>` : ''}</a>`).join('')}</div>`;
+}
+
+// Home (new layout): your last five Overwatch matches, when the game is in your library
+let owHomeAsked = false;
+function homeOwHtml() {
+  if (!items.some((i) => i.type === 'game' && /overwatch/i.test(i.name))) return '';
+  if (!owLoaded) {
+    if (!owHomeAsked) {
+      owHomeAsked = true;
+      window.api.matchesList().then((l) => { owMatches = l || []; owLoaded = true; if (view === 'home' && !query) render(); }).catch(() => {});
+    }
+    return '';
+  }
+  const last = owMatches.filter((m) => /overwatch/i.test(m.game || 'overwatch')).sort((a, b) => b.t - a.t).slice(0, 5);
+  const w = last.filter((m) => m.r === 'w').length, l = last.filter((m) => m.r === 'l').length, d = last.length - w - l;
+  const letterOf = { w: 'W', l: 'L', d: 'D' };
+  const mapOf = (m) => (OW.modeOf(m) === 'stadium' ? OW.mapsOf(m).join(', ') : m.map || '');
+  const when = (t) => (t >= daysAgo(0) ? 'today' : t >= daysAgo(1) ? 'yesterday' : timeAgo(t));
+  const tipOf = (m) => `${m.r === 'w' ? 'Won' : m.r === 'l' ? 'Lost' : 'Drew'}${mapOf(m) ? ` on ${mapOf(m)}` : ''}, ${when(m.t)}${OW.heroesOf(m).length ? ` · ${OW.heroesOf(m).join(', ')}` : ''}`;
+  // A few friendly reminders worked out from those five matches: a streak, a map that has been going badly, a hero that has
+  const notes = [];
+  let run = 0; while (run < last.length && last[run].r === last[0].r && last[0].r !== 'd') run++;
+  if (last.length && run >= 3) notes.push(last[0].r === 'l' ? `${run} losses in a row. Maybe take a break.` : `${run} wins in a row. Keep it going!`);
+  const byMap = {};
+  for (const m of last) { const k = mapOf(m); if (!k || m.r === 'd') continue; const x = byMap[k] = byMap[k] || { w: 0, l: 0, lastLoss: 0 }; if (m.r === 'w') x.w++; else { x.l++; x.lastLoss = Math.max(x.lastLoss, m.t); } }
+  const badMap = Object.entries(byMap).filter(([, x]) => x.l > x.w).sort((a, b) => b[1].lastLoss - a[1].lastLoss)[0];
+  if (badMap) notes.push(`Maybe skip ${badMap[0]}: you lost on it ${when(badMap[1].lastLoss)}.`);
+  const byHero = {};
+  for (const m of last) for (const h of OW.heroesOf(m)) { const x = byHero[h] = byHero[h] || { w: 0, l: 0 }; if (m.r === 'w') x.w++; else if (m.r === 'l') x.l++; }
+  const coldHero = Object.entries(byHero).filter(([, x]) => x.l >= 2 && !x.w)[0];
+  const hotHero = Object.entries(byHero).filter(([, x]) => x.w >= 2 && !x.l)[0];
+  if (coldHero) notes.push(`Rough run on ${coldHero[0]}: ${coldHero[1].l} losses in these games. Maybe swap.`);
+  else if (hotHero) notes.push(`${hotHero[0]} is working: ${hotHero[1].w} wins from ${hotHero[1].w}.`);
+  const body = last.length ? `
+    <div class="hm-form">${last.map((m) => `<span class="hm-dot ${m.r}" title="${esc(tipOf(m))}">${letterOf[m.r] || '?'}</span>`).join('')}
+      <span class="hm-rec">${w}W ${l}L${d ? ` ${d}D` : ''} · ${Math.round((w / last.length) * 100)}%</span></div>
+    ${notes.length ? `<div class="hm-notes">${notes.slice(0, 3).map((n) => `<div>💡 ${esc(n)}</div>`).join('')}</div>` : ''}
+    ${last.map((m) => {
+      const heroes = OW.heroesOf(m).join(', ') || 'Hero not set';
+      return `<div class="hm-row" title="${esc(tipOf(m))}"><span class="hm-res ${m.r}">${letterOf[m.r] || '?'}</span><span class="hm-main"><b>${esc(heroes)}</b><small>${esc(mapOf(m) || 'Map not set')}</small></span><small class="hn-when">${timeAgo(m.t)}</small></div>`;
+    }).join('')}` : '<div class="hm-empty">No matches logged yet. Matches show up here once you add one, or turn on automatic logging in Settings.</div>';
+  return `<div class="panel home-card"><div class="home-card-head"><h3>Overwatch · last ${last.length || 5} matches</h3><button class="link" data-goto="overwatch">Open</button></div>${body}</div>`;
 }
 
 function renderGames() {
   const all = ofType('game');
   const counts = {};
   all.forEach((g) => { counts[g.source] = (counts[g.source] || 0) + 1; });
-  if (sourceFilter !== 'all' && !counts[sourceFilter]) sourceFilter = 'all';
-  const tagRow = tagFilterHtml(all); // also drops tags nobody has any more from the active filter
-  const list = sortGames((sourceFilter === 'all' ? all : all.filter((g) => g.source === sourceFilter)).filter((g) => matchesTags(g.id)));
   const s = prefs.settings;
+  const fresh = s.layout !== 'classic';
+  // Quick filters (new layout): favourites, games with an update waiting, and what you played in the last two weeks
+  const quick = {
+    fav: { name: '★ Favourites', test: (g) => isFav(g.id) },
+    upd: { name: '⬇ Needs update', test: (g) => !!updateOf(g.id) },
+    rec: { name: 'Played lately', test: (g) => Date.now() - (prefs.recents[g.id] || 0) < 14 * DAY_MS },
+  };
+  const quickCount = Object.fromEntries(Object.entries(quick).map(([k, q]) => [k, all.filter(q.test).length]));
+  if (!fresh && quick[sourceFilter]) sourceFilter = 'all';
+  if (quick[sourceFilter] ? !quickCount[sourceFilter] : sourceFilter !== 'all' && !counts[sourceFilter]) sourceFilter = 'all';
+  const tagRow = tagFilterHtml(all); // also drops tags nobody has any more from the active filter
+  const pass = (g) => (sourceFilter === 'all' ? true : quick[sourceFilter] ? quick[sourceFilter].test(g) : g.source === sourceFilter);
+  let list = sortGames(all.filter(pass).filter((g) => matchesTags(g.id)));
+  if (sourceFilter === 'rec') list = list.sort((a, b) => (prefs.recents[b.id] || 0) - (prefs.recents[a.id] || 0));
   const chips = [`<button class="chip ${sourceFilter === 'all' ? 'active' : ''}" data-filter="all">All · ${all.length}</button>`]
+    .concat(fresh ? Object.keys(quick).filter((k) => quickCount[k]).map((k) => `<button class="chip quick ${sourceFilter === k ? 'active' : ''}" data-filter="${k}">${quick[k].name} · ${quickCount[k]}</button>`) : [])
     .concat(Object.keys(SOURCES).filter((x) => counts[x]).map((x) =>
       `<button class="chip ${sourceFilter === x ? 'active' : ''}" data-filter="${x}" style="--src: var(--${x})"><span class="dot"></span>${SOURCES[x]} · ${counts[x]}</button>`));
   let body;
@@ -243,7 +373,7 @@ function renderGames() {
   } else body = `<div class="section">${games(list)}</div>`;
   // games with an update waiting get their own row at the top, so you can start the download before you want to play
   const needs = list.filter((g) => updateOf(g.id));
-  if (needs.length && list.length > needs.length) body = section(`Needs an update · ${needs.length}`, games(needs)) + body;
+  if (!fresh && needs.length && list.length > needs.length) body = section(`Needs an update · ${needs.length}`, games(needs)) + body;
   content.innerHTML = `
     <div class="page-head"><h1 class="page-title">Games</h1>
       <div class="page-tools"><label>Sort <select data-gsort>${[['name', 'Name'], ['recent', 'Recently played'], ['played', 'Most played'], ['source', 'Launcher']].map(([k, n]) => `<option value="${k}"${s.gamesSort === k ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
@@ -361,6 +491,11 @@ function updateNav() {
   }
   if (!show && view === 'gacha') view = 'home';
   $('#hotkeyHint').textContent = prettyAccel(prefs.settings.hotkey || '');
+  // The icon rail has no labels, so every button gets its name as a tooltip
+  $$('.sidebar button').forEach((b) => {
+    if (b.dataset.tip === undefined) b.dataset.tip = b.title ? '' : [...b.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').trim();
+    if (b.dataset.tip) b.title = b.dataset.tip;
+  });
   updateNowStatus();
 }
 
@@ -391,6 +526,23 @@ function syncDetailCover() {
   if (!it || !it.cover || !holder || holder.querySelector('img.art')) return;
   holder.innerHTML = `<img class="art" src="${esc(it.cover)}" data-fallback="${esc(it.coverFallback || '')}" alt="" decoding="async"><template>${placeholder(it)}</template>`;
   $('.detail-hero .bg', detail).style.backgroundImage = cssUrl(it.cover);
+  const big = $('.detail-bg', detail);
+  if (big) big.style.backgroundImage = cssUrl(it.cover);
+}
+
+// Tabs on a game's page (new layout): a tab only shows up once its section has something in it
+let detailTab = 'overview';
+function setDetailTab(k) {
+  detailTab = k;
+  detail.dataset.tab = k;
+  $$('[data-dtab]', detail).forEach((b) => b.classList.toggle('active', b.dataset.dtab === k));
+}
+function syncDetailTabs() {
+  if (!detailId || detail.hidden) return;
+  const filled = (sel) => { const el = $(sel, detail); return !!el && (el.textContent.trim().length > 0 || !!el.querySelector('img,video')); };
+  const has = { clips: filled('#detailClips'), news: filled('#detailNews'), ach: filled('#detailAch') };
+  $$('[data-dtab]', detail).forEach((b) => { if (b.dataset.dtab !== 'overview') b.hidden = !has[b.dataset.dtab]; });
+  if (detailTab !== 'overview' && !has[detailTab]) setDetailTab('overview');
 }
 
 // Fade the page's blocks in one after another (only when you switch pages, not on every refresh)
@@ -398,12 +550,31 @@ let enterTimer;
 function playEnter() {
   if (document.body.classList.contains('no-anim')) return;
   const sel = '.hero,.greeting,.gotd,.nowplaying,.section-head,.game,.tile,.stat-card,.panel,.g-card,.g-chip,.set-section,.facts-strip,.page-title,.page-sub,.chips';
-  $$(sel, content).forEach((el, i) => el.style.setProperty('--i', Math.min(i, 20)));
+  $$(sel, content).forEach((el, i) => el.style.setProperty('--i', Math.min(i, 22)));
   content.classList.remove('anim-in');
   void content.offsetWidth;
   content.classList.add('anim-in');
   clearTimeout(enterTimer);
-  enterTimer = setTimeout(() => content.classList.remove('anim-in'), 1200);
+  enterTimer = setTimeout(() => content.classList.remove('anim-in'), 1700);
+  countUp(content);
+}
+
+// Numbers on the page roll up from zero (2h 30m counts both parts), so a page doesn't just appear
+function countUp(root) {
+  if (document.body.classList.contains('no-anim') || document.body.classList.contains('no-enter')) return;
+  for (const el of $$('.stat-num:not(.name)', root)) {
+    const node = [...el.childNodes].find((n) => n.nodeType === 3 && /\d/.test(n.textContent));
+    if (!node) continue;
+    const final = node.textContent;
+    const parts = final.split(/(\d+(?:\.\d+)?)/); // odd entries are the numbers
+    const t0 = performance.now();
+    const step = (t) => {
+      const p = Math.min(1, (t - t0) / 900), e = 1 - Math.pow(1 - p, 3);
+      node.textContent = p >= 1 ? final : parts.map((x, i) => (i % 2 ? (parseFloat(x) * e).toFixed((x.split('.')[1] || '').length) : x)).join('');
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
 }
 
 function setView(v) {
@@ -602,6 +773,7 @@ async function refresh(rescan = false) {
 const detail = $('#detail');
 const lightbox = $('#lightbox');
 let detailId = null;
+new MutationObserver(() => requestAnimationFrame(syncDetailTabs)).observe(detail, { childList: true, subtree: true, characterData: true });
 let shots = [];
 let shotIndex = 0;
 
@@ -627,8 +799,11 @@ function openDetail(id) {
   const cover = it.cover
     ? `<img class="art" src="${esc(it.cover)}" data-fallback="${esc(it.coverFallback || '')}" alt="" decoding="async"><template>${placeholder(it)}</template>`
     : placeholder(it);
+  detailTab = 'overview';
+  detail.dataset.tab = 'overview';
   detail.innerHTML = `
     <button class="detail-close" title="Close (Esc)">✕</button>
+    <div class="detail-bg" ${bg}></div>
     <div class="detail-hero" style="--src: var(--${it.source})">
       <div class="bg" ${bg}></div>
       <div class="detail-cover">${cover}</div>
@@ -648,6 +823,7 @@ function openDetail(id) {
         </div>
       </div>
     </div>
+    ${it.type === 'game' ? `<div class="detail-tabs">${[['overview', 'Overview'], ['clips', 'Clips'], ['news', 'News'], ['ach', 'Achievements']].map(([k, n]) => `<button data-dtab="${k}" class="${k === 'overview' ? 'active' : ''}"${k === 'overview' ? '' : ' hidden'}>${n}</button>`).join('')}</div>` : ''}
     <div class="detail-body" id="detailBody">
       <div id="detailNews"></div>
       <div id="detailAch">${achCache[id] ? achievementsHtml(achCache[id]) : ''}</div>
@@ -716,6 +892,8 @@ function closeLightbox() { fadeHide(lightbox, 160); }
 detail.addEventListener('click', async (e) => {
   const t = e.target;
   if (t.closest('.detail-close')) return closeDetail();
+  const dtab = t.closest('[data-dtab]');
+  if (dtab) { setDetailTab(dtab.dataset.dtab); return detail.scrollTo({ top: 0 }); }
   const shot = t.closest('[data-shot]');
   if (shot) return showShot(Number(shot.dataset.shot));
   const ext = t.closest('[data-ext]');

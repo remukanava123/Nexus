@@ -1690,3 +1690,133 @@ body.perf .cover, body.perf .cover .overlay, body.perf .overlay .play, body.perf
 .b-orb { filter: none; }
 .b-orb.o1 { background: radial-gradient(circle, #2b7bff 0%, transparent 68%); }
 .b-orb.o2 { background: radial-gradient(circle, #ff2d72 0%, transparent 68%); }
+
+/* ===================== New layout (Settings → Sidebar → Layout) ===================== */
+/* One strip at the top: logo on the left, search in the middle, the window buttons on the right */
+body.layout-b .titlebar { padding: 0 150px 0 18px; gap: 18px; }
+body.layout-b .titlebar .topbar { flex: 0 1 560px; margin: 0 auto; padding: 0; -webkit-app-region: no-drag; }
+body.layout-b .titlebar .search { height: 32px; max-width: none; padding: 0 12px; gap: 9px; border-radius: 10px; }
+body.layout-b .titlebar .search svg { width: 15px; height: 15px; }
+body.layout-b .titlebar .search input { font-size: 13px; }
+body.layout-b .titlebar kbd { font-size: 10.5px; padding: 2px 6px; }
+
+/* Slim icon rail (the names are tooltips) */
+body.layout-b { grid-template-columns: 68px 1fr; }
+body.layout-b .sidebar { padding: 6px 9px 14px; }
+body.layout-b .sidebar button { height: 44px; border-radius: 12px; padding: 0; }
+body.layout-b .nav-sep { margin: 8px 14px; }
+body.layout-b .sidebar-bottom { border-top: 0; padding-top: 0; }
+body.side-icons .detail { left: 72px; }
+body.layout-b .detail { left: 68px; }
+
+/* Home: the jump-back-in banner beside a column of tiles */
+.home-top { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(260px, 1fr); gap: var(--gap, 18px); margin-top: 14px; align-items: stretch; }
+.home-top.no-hero { grid-template-columns: 1fr; }
+.home-top .hero { margin-top: 0; height: auto; min-height: 300px; }
+.home-side { display: flex; flex-direction: column; gap: var(--gap, 18px); min-width: 0; }
+.home-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.home-tiles .stat-card { padding: 14px; }
+.home-tiles .stat-num { font-size: 22px; }
+.home-side .gotd { margin-top: 0; flex: 1; flex-wrap: wrap; align-content: center; }
+.home-side .gotd .btn { display: none; }
+.home-side .gotd-main { flex: 1 1 130px; }
+@media (max-width: 1000px) { .home-top { grid-template-columns: 1fr; } }
+
+/* Games: bigger covers, and the quick filters sit with the launcher chips */
+body.layout-b .grid-games { grid-template-columns: repeat(auto-fill, minmax(calc(var(--card) * 1.2), 1fr)); }
+body.layout-b[data-cover="landscape"] .grid-games { grid-template-columns: repeat(auto-fill, minmax(calc(var(--card) * 1.9), 1fr)); }
+.chip.quick.active { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+/* A game's page: a big blurred backdrop behind everything, and tabs */
+.detail-bg, .detail-tabs { display: none; }
+body.layout-b .detail { overflow-x: hidden; }
+body.layout-b .detail-bg {
+  display: block; position: absolute; left: -60px; right: -60px; top: 0; height: 680px; z-index: 0; pointer-events: none;
+  background-size: cover; background-position: center 25%; filter: blur(36px) saturate(1.4); opacity: .62;
+  -webkit-mask-image: linear-gradient(#000 35%, transparent); mask-image: linear-gradient(#000 35%, transparent);
+}
+body.layout-b .detail > :not(.detail-bg):not(.detail-close) { position: relative; z-index: 1; }
+body.layout-b .detail-hero { min-height: 380px; }
+body.layout-b .detail-hero .bg { display: none; }
+body.layout-b .detail-hero::after { background: linear-gradient(to right, rgba(8, 10, 14, .4), transparent 75%); }
+body.layout-b .detail-tabs { display: flex; gap: 6px; padding: 0 48px; margin-top: 4px; border-bottom: 1px solid var(--border); }
+.detail-tabs button { padding: 12px 18px; border: 0; margin-bottom: -1px; background: none; color: var(--muted); font-weight: 600; border-bottom: 2px solid transparent; transition: color .15s, border-color .15s; }
+.detail-tabs button:hover { color: var(--text); }
+.detail-tabs button.active { color: var(--text); border-bottom-color: var(--accent); }
+.detail-tabs button[hidden] { display: none; }
+body.layout-b .detail-body { padding-top: 26px; }
+body.layout-b .detail[data-tab="overview"] :is(#detailClips, #detailNews, #detailAch) { display: none; }
+body.layout-b .detail[data-tab="clips"] .detail-body > :not(#detailClips),
+body.layout-b .detail[data-tab="news"] .detail-body > :not(#detailNews),
+body.layout-b .detail[data-tab="ach"] .detail-body > :not(#detailAch) { display: none; }
+body.layout-b .detail:not([data-tab="overview"]) .detail-body { grid-template-columns: minmax(0, 1fr); }
+
+/* Cards rise one after another with a little spring */
+@keyframes cardRise { from { opacity: 0; transform: translateY(28px) scale(.9); } }
+body.layout-b .anim-in :is(.game, .tile) { animation: cardRise .65s cubic-bezier(.34, 1.45, .64, 1) backwards; animation-delay: calc(var(--i, 0) * 38ms); }
+body.no-anim .anim-in :is(.game, .tile) { animation: none; }
+
+/* Stats: bars grow up from the floor, and the other bars fill in, when you open the page */
+@keyframes barUp { from { transform: scaleY(0); } }
+@keyframes barAcross { from { transform: scaleX(0); } }
+.anim-in .bar-col .bar { transform-origin: bottom; animation: barUp .9s cubic-bezier(.2, .8, .2, 1) backwards; animation-delay: calc(var(--k, 0) * 45ms + 250ms); }
+.anim-in .toprow-bar span, .anim-in .stack-bar span { transform-origin: left; animation: barAcross 1s cubic-bezier(.2, .8, .2, 1) backwards; animation-delay: .35s; }
+body.no-anim .anim-in :is(.bar-col .bar, .toprow-bar span, .stack-bar span), body.no-enter .anim-in :is(.bar-col .bar, .toprow-bar span, .stack-bar span) { animation: none; }
+
+/* Settings: topics on the left, one topic on the right */
+.set-split { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 28px; margin-top: 6px; align-items: start; }
+.set-nav { position: sticky; top: 0; display: flex; flex-direction: column; gap: 2px; }
+.set-nav button { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 0; border-radius: 10px; background: none; color: var(--muted); font-weight: 500; text-align: left; }
+.set-nav button span { width: 22px; text-align: center; }
+.set-nav button:hover { background: var(--surface-2); color: var(--text); }
+.set-nav button.active { background: color-mix(in srgb, var(--accent) 20%, var(--surface-2)); color: var(--text); box-shadow: inset 3px 0 0 var(--accent); }
+.set-pane .set-section:first-child { margin-top: 0; }
+@media (max-width: 900px) { .set-split { grid-template-columns: 1fr; } .set-nav { position: static; flex-direction: row; flex-wrap: wrap; } }
+
+/* New Home: the last-7-days panel under the tiles, and Gacha beside a ranking */
+.home-week { flex: 1; display: flex; flex-direction: column; padding: 14px 18px; }
+.home-week h3 { margin-bottom: 10px; }
+.home-week .bars { flex: 1; height: auto; min-height: 90px; }
+.home-mid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: var(--gap, 18px); align-items: start; }
+.home-mid.one { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 1000px) { .home-mid { grid-template-columns: minmax(0, 1fr); } }
+
+/* New Home: a wide splash banner, then news beside your last Overwatch matches */
+.hero.wide { height: 340px; }
+.hero-wide-art { position: absolute; inset: 0; background-size: cover; background-position: center 30%; opacity: 0; transition: opacity .7s ease; }
+.hero-wide-art.loaded { opacity: 1; }
+.hero.has-wide .hero-art, .hero.has-wide .hero-bg { display: none; }
+.hero.has-wide::after { background: linear-gradient(90deg, rgba(11, 13, 18, .88) 12%, rgba(11, 13, 18, .35) 55%, rgba(11, 13, 18, .05)), linear-gradient(to top, rgba(11, 13, 18, .6), transparent 45%); }
+.hero.wide .hero-info { max-width: 60%; }
+.hero.wide h1 { font-size: 40px; text-shadow: 0 2px 18px rgba(0, 0, 0, .6); }
+.hero.wide .hero-label { color: #cdd2de; text-shadow: 0 1px 10px rgba(0, 0, 0, .6); }
+.home-feed { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: var(--gap, 18px); margin-top: 22px; align-items: start; }
+.home-feed.one { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 1000px) { .home-feed { grid-template-columns: minmax(0, 1fr); } }
+.home-card { padding: 16px 18px; }
+.home-card-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+.home-card-head h3 { margin: 0; }
+.home-card .link { background: none; border: 0; color: var(--muted); font-size: 13px; }
+.home-card .link:hover { color: var(--text); }
+.hn-item { display: flex; align-items: center; gap: 12px; padding: 8px 6px; margin: 0 -6px; border-radius: 10px; color: inherit; text-decoration: none; cursor: pointer; }
+.hn-item:hover { background: var(--surface-3); }
+.hn-art { width: 38px; height: 38px; flex: none; border-radius: 8px; overflow: hidden; background: var(--surface-3); }
+.hn-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.hn-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.hn-main b { font-weight: 600; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hn-main small, .hn-when { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.hm-form { display: flex; align-items: center; gap: 6px; margin: 2px 0 12px; }
+.hm-dot, .hm-res { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; font-size: 12px; font-weight: 700; flex: none; background: var(--surface-3); color: var(--muted); }
+.hm-dot.w, .hm-res.w { background: rgba(53, 208, 127, .18); color: #35d07f; }
+.hm-dot.l, .hm-res.l { background: rgba(255, 93, 108, .18); color: #ff5d6c; }
+.hm-rec { margin-left: 8px; color: var(--muted); font-size: 13px; }
+.hm-row { display: flex; align-items: center; gap: 12px; padding: 6px 0; }
+.hm-res { width: 22px; height: 22px; font-size: 11px; border-radius: 6px; }
+.hm-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.hm-main b { font-weight: 600; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hm-main small { color: var(--muted); font-size: 12px; }
+.hm-empty { color: var(--muted); font-size: 13px; line-height: 1.5; padding: 4px 0; }
+.hm-notes { margin: 0 0 8px; padding: 9px 12px; border-radius: 10px; background: rgba(var(--accent-rgb), .12); font-size: 12.5px; line-height: 1.5; }
+.hm-notes div + div { margin-top: 3px; }
+.home-card .hm-row { border-radius: 8px; margin: 0 -6px; padding: 6px; }
+.home-card .hm-row:hover { background: var(--surface-3); }

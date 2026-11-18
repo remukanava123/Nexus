@@ -33,6 +33,14 @@ function hslToHex(h, s, l) {
   return `#${[f(0), f(8), f(4)].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
 }
 
+// The search bar lives in the main area (classic) or in the title bar (new layout), so there is one strip less
+function placeTopbar(inTitle) {
+  const bar = document.querySelector('.topbar'), tb = document.querySelector('.titlebar'), main = document.querySelector('main');
+  if (!bar || !tb || !main) return;
+  if (inTitle && bar.parentElement !== tb) tb.appendChild(bar);
+  else if (!inTitle && bar.parentElement !== main) main.insertBefore(bar, document.getElementById('content'));
+}
+
 function applyTheme(s) {
   const root = document.documentElement.style;
   const t = THEMES[s.theme] || THEMES.midnight;
@@ -74,7 +82,11 @@ function applyTheme(s) {
   b.classList.toggle('hide-titles', !s.showTitles);
   b.classList.toggle('hide-fav', s.showFavStar === false);
   b.classList.toggle('hide-running', s.showRunningBadge === false);
-  b.classList.toggle('side-icons', s.sidebarStyle === 'icons');
+  // The new layout is a slim icon rail with the search folded into the title bar; "classic" keeps the old arrangement
+  const fresh = s.layout !== 'classic';
+  b.classList.toggle('layout-b', fresh);
+  b.classList.toggle('side-icons', fresh || s.sidebarStyle === 'icons');
+  placeTopbar(fresh);
   b.classList.toggle('plain-nav', s.sidebarColors === false);
 
   window.api.setTitlebar(t.bg, '#9aa0ae');

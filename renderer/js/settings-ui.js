@@ -24,7 +24,8 @@ const SETTINGS_SCHEMA = [
     { key: 'showRunningBadge', label: '“Playing” label on running games', type: 'toggle' },
   ] },
   { id: 'sidebar', title: 'Sidebar', icon: '🧭', rows: [
-    { key: 'sidebarStyle', label: 'Sidebar', type: 'select', options: [['full', 'Icons and names'], ['icons', 'Icons only (narrow)']] },
+    { key: 'layout', label: 'Layout', desc: 'New: slim icon rail, search in the title bar, a dashboard Home and a tabbed game page', type: 'select', options: [['new', 'New'], ['classic', 'Classic']] },
+    { key: 'sidebarStyle', label: 'Sidebar (classic layout)', type: 'select', options: [['full', 'Icons and names'], ['icons', 'Icons only (narrow)']] },
     { key: 'sidebarColors', label: 'Colourful icons', desc: 'Each button its own colour. Off: everything in your accent colour', type: 'toggle' },
     { key: 'navApps', label: 'Show Apps', type: 'toggle' },
     { key: 'navWeb', label: 'Show Websites', type: 'toggle' },
@@ -222,27 +223,46 @@ function refreshShellInfo() {
 }
 
 let settingsTab = 'basic';
+let settingsSec = '';
 function renderSettings() {
   const s = prefs.settings;
   const adv = settingsTab === 'advanced';
   setTimeout(refreshShellInfo, 0);
   // Only the rows that belong to this tab; a section with nothing to show on this tab disappears
   const sections = SETTINGS_SCHEMA.map((sec) => ({ sec, html: sec.rows.filter((r) => adv === !!r.adv).map((r) => settingRow(r, s)).join('') })).filter((x) => x.html.trim());
-  content.innerHTML = `
-    <h1 class="page-title">Settings</h1>
-    <div class="set-tabs"><button class="${adv ? '' : 'active'}" data-stab="basic">Basic</button><button class="${adv ? 'active' : ''}" data-stab="advanced">Advanced</button></div>
-    <p class="page-sub">${adv ? 'Fine-tuning. The defaults are fine for most people. Everything saves automatically' : 'The everyday options. Everything saves automatically'}</p>
-    <div class="chips set-jump">${sections.map(({ sec }) => `<button class="chip" data-jump="set-${sec.id}">${sec.icon} ${esc(sec.title)}</button>`).join('')}</div>
-    ${sections.map(({ sec, html }) => `
+  const shortcutsHtml = adv ? '' : `<section class="set-section"><h2>⌨ Shortcuts</h2><div class="set-card"><div class="set-row block"><div class="shortcuts">
+      <span><kbd>${esc(prettyAccel(s.hotkey))}</kbd> Show or hide Nexus</span><span><kbd>F11</kbd> Big-screen mode</span><span><kbd>Esc</kbd> Close / back</span>
+      <span><kbd>Enter</kbd> Launch the top search result</span><span><kbd>Ctrl</kbd> + <kbd>R</kbd> Pick a game for me</span><span>Just start typing to search</span>
+    </div></div></div></section>`;
+  const aboutHtml = `<section class="set-section"><h2>ℹ️ About</h2><div class="set-card"><div class="set-row block"><div class="about"><img src="../assets/logo.svg" alt=""><div><b>Nexus <span id="aboutVersion"></span></b><small>Made by Claude, an AI assistant from Anthropic, written and tested with Claude Code.<br>Free and open source. Your library and settings stay on this PC.</small></div></div></div></div></section>`;
+  const secHtml = ({ sec, html }) => `
       <section class="set-section" id="set-${sec.id}">
         <h2>${sec.icon} ${esc(sec.title)}</h2>
         <div class="set-card">${html}</div>
-      </section>`).join('')}
-    ${adv ? '' : `<section class="set-section"><h2>⌨ Shortcuts</h2><div class="set-card"><div class="set-row block"><div class="shortcuts">
-      <span><kbd>${esc(prettyAccel(s.hotkey))}</kbd> Show or hide Nexus</span><span><kbd>F11</kbd> Big-screen mode</span><span><kbd>Esc</kbd> Close / back</span>
-      <span><kbd>Enter</kbd> Launch the top search result</span><span><kbd>Ctrl</kbd> + <kbd>R</kbd> Pick a game for me</span><span>Just start typing to search</span>
-    </div></div></div></section>`}
-    <section class="set-section"><h2>ℹ️ About</h2><div class="set-card"><div class="set-row block"><div class="about"><img src="../assets/logo.svg" alt=""><div><b>Nexus <span id="aboutVersion"></span></b><small>Made by Claude, an AI assistant from Anthropic, written and tested with Claude Code.<br>Free and open source. Your library and settings stay on this PC.</small></div></div></div></div></section>`;
+      </section>`;
+  const tabs = `<div class="set-tabs"><button class="${adv ? '' : 'active'}" data-stab="basic">Basic</button><button class="${adv ? 'active' : ''}" data-stab="advanced">Advanced</button></div>`;
+  if (s.layout !== 'classic') {
+    // New layout: a list of topics on the left, one topic at a time on the right
+    const entries = sections.map((x) => ({ id: x.sec.id, icon: x.sec.icon, title: x.sec.title, html: secHtml(x) }));
+    entries.push({ id: 'about', icon: 'ℹ️', title: adv ? 'About' : 'Shortcuts and about', html: shortcutsHtml + aboutHtml });
+    const cur = entries.find((e) => e.id === settingsSec) || entries[0];
+    content.innerHTML = `
+      <h1 class="page-title">Settings</h1>
+      ${tabs}
+      <div class="set-split">
+        <nav class="set-nav">${entries.map((e) => `<button class="${e === cur ? 'active' : ''}" data-ssec="${e.id}"><span>${e.icon}</span>${esc(e.title)}</button>`).join('')}</nav>
+        <div class="set-pane">${cur.html}</div>
+      </div>`;
+  } else {
+    content.innerHTML = `
+    <h1 class="page-title">Settings</h1>
+    ${tabs}
+    <p class="page-sub">${adv ? 'Fine-tuning. The defaults are fine for most people. Everything saves automatically' : 'The everyday options. Everything saves automatically'}</p>
+    <div class="chips set-jump">${sections.map(({ sec }) => `<button class="chip" data-jump="set-${sec.id}">${sec.icon} ${esc(sec.title)}</button>`).join('')}</div>
+    ${sections.map(secHtml).join('')}
+    ${shortcutsHtml}
+    ${aboutHtml}`;
+  }
   window.api.appInfo().then((i) => { const el = document.getElementById('aboutVersion'); if (el && i) el.textContent = i.version; }).catch(() => {});
 }
 
@@ -357,6 +377,8 @@ function initSettingsUi() {
     const t = e.target;
     const tab = t.closest('[data-stab]');
     if (tab) { settingsTab = tab.dataset.stab; renderSettings(); content.scrollTop = 0; return; }
+    const ssec = t.closest('[data-ssec]');
+    if (ssec) { settingsSec = ssec.dataset.ssec; renderSettings(); content.scrollTop = 0; return; }
     const jump = t.closest('[data-jump]');
     if (jump) { const el = document.getElementById(jump.dataset.jump); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
     const sw = t.closest('button.switch[data-set]');

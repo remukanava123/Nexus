@@ -12,7 +12,7 @@ async function loadNews(force) {
   if (force && view === 'news') { const b = $('[data-nsync]'); if (b) b.classList.add('spin'); }
   try { setNews(await window.api.getNews(!!force)); } catch { /* offline: keep what we have */ }
   newsLoading = false;
-  if (view === 'news' && !query) render();
+  if ((view === 'news' || view === 'home') && !query) render();
 }
 
 function setNews(d) {
@@ -24,7 +24,7 @@ function setNews(d) {
 
 window.api.on('news:updated', (d) => {
   setNews(d);
-  if (view === 'news' && !query) render();
+  if ((view === 'news' || view === 'home') && !query) render();
   refreshDetailNews();
 });
 setInterval(() => { if (view === 'news' && !document.hidden) loadNews(true); }, 15 * 60000);
@@ -143,6 +143,7 @@ function initNews() {
   };
   // (links on a game's page are opened by app.js's own click handler for #detail)
   content.addEventListener('click', (e) => {
+    if (view === 'home') { go(e); return; } // the news card on Home
     if (view !== 'news') return;
     if (go(e)) return;
     const f = e.target.closest('[data-nfilter]');
