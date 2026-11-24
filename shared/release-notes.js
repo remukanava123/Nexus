@@ -1,5 +1,14 @@
 // What's new, shown once after Nexus is updated. Add an entry for each version you release (the key is the version in package.json).
 module.exports = {
+  '1.3.8': {
+    title: 'A wallpaper from your games',
+    items: [
+      ['🖼️', 'Art behind everything', 'The artwork of the game you played last now sits behind Nexus. Only big, sharp pictures are used, so it never looks blurry or pixelated; a game without good art simply gets none.'],
+      ['🖱️', 'It follows your pointer', 'Rest on a game and the screen goes black, then the new picture is drawn in from the top down.'],
+      ['🎨', 'Buttons in the game’s colour', 'Play, highlights and the active icon light up in the main colour of the artwork.'],
+      ['🔛', 'Easy to switch off', 'A 🖼️ button on the Home banner turns it on or off, and Settings → Appearance has switches for the wallpaper, the pointer effect and the colours. Nexus asks once whether you want to keep it.'],
+    ],
+  },
   '1.3.7': {
     title: 'A fresh layout',
     items: [

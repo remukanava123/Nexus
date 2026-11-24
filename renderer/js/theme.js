@@ -87,6 +87,8 @@ function applyTheme(s) {
   b.classList.toggle('layout-b', fresh);
   b.classList.toggle('side-icons', fresh || s.sidebarStyle === 'icons');
   placeTopbar(fresh);
+  b.classList.toggle('wall-on', fresh && s.wallpaper !== false && !perf);
+  if (typeof updateWall === 'function') updateWall();
   b.classList.toggle('plain-nav', s.sidebarColors === false);
 
   window.api.setTitlebar(t.bg, '#9aa0ae');

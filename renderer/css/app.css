@@ -1820,3 +1820,53 @@ body.no-anim .anim-in :is(.bar-col .bar, .toprow-bar span, .stack-bar span), bod
 .hm-notes div + div { margin-top: 3px; }
 .home-card .hm-row { border-radius: 8px; margin: 0 -6px; padding: 6px; }
 .home-card .hm-row:hover { background: var(--surface-3); }
+
+/* ---------- Wallpaper: wide art of your last game behind the whole app (new layout) ---------- */
+.wall { display: none; }
+body.wall-on .wall {
+  display: block; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background-size: cover; background-position: center; opacity: 0; transition: opacity .8s ease;
+  filter: blur(5px) saturate(1.2); transform: scale(1.05); /* a touch of blur hides compression, and costs nothing: the layer never moves */
+}
+body.wall-on .wall.shown { opacity: 1; }
+/* a dark wash so text stays readable on bright art, deeper towards the bottom */
+body.has-wall::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(180deg, rgba(8,10,16,.55), rgba(8,10,16,.78));
+}
+body.has-wall main { background: color-mix(in srgb, var(--surface) 56%, transparent); border-color: rgba(255,255,255,.07); }
+body.has-wall .page-clip { display: none; }
+body.has-wall .sidebar, body.has-wall .titlebar { background: none; }
+body.has-wall .home-card, body.has-wall .set-pane, body.has-wall .set-nav,
+body.has-wall .nw-card, body.has-wall .b-card { background: color-mix(in srgb, var(--surface-2) 62%, transparent); }
+body.has-wall .search { background: rgba(10,12,18,.55); }
+/* bright art (pink blossoms, white UIs) swamped the rail and search, so dim the picture itself and back the rail */
+body.wall-on .wall { filter: blur(5px) saturate(1.1) brightness(.7); }
+body.has-wall::before { background: linear-gradient(180deg, rgba(8,10,16,.62), rgba(8,10,16,.84)); }
+body.has-wall .sidebar { background: rgba(8,10,16,.5); }
+body.has-wall .titlebar { background: linear-gradient(180deg, rgba(8,10,16,.55), transparent); }
+body.has-wall .sidebar button:hover { background: rgba(255,255,255,.1); }
+
+/* two wallpaper layers crossfade slowly; the dark wash sits between them and the page */
+body.wall-on .wall { z-index: -3; transition: opacity 1.8s ease; filter: blur(5px) saturate(1.1) brightness(.85); }
+body.wall-on .wall.top { z-index: -2; }
+body.has-wall::before { background: linear-gradient(180deg, rgba(8,10,16,.5), rgba(8,10,16,.74)); }
+/* buttons and highlights take the game's colour (theme.js's accent is overridden on <body> while a wallpaper is up) */
+body.has-wall .play-btn { box-shadow: 0 8px 26px rgba(var(--accent-rgb), .4); }
+body.has-wall .btn:hover, body.has-wall .chip:hover { border-color: rgba(var(--accent-rgb), .65); box-shadow: 0 0 18px rgba(var(--accent-rgb), .25); }
+body.has-wall .sidebar button.active { background: rgba(var(--accent-rgb), .22); }
+body.has-wall .sidebar button:hover svg { color: var(--accent); }
+.wall-btn { width: 46px; padding: 0; opacity: .75; }
+.wall-btn.on { opacity: 1; border-color: rgba(var(--accent-rgb), .55); }
+
+/* lighter wash: the first version hid most of the picture */
+body.wall-on .wall { filter: blur(5px) saturate(1.15) brightness(1); }
+body.has-wall::before { background: linear-gradient(180deg, rgba(8,10,16,.28), rgba(8,10,16,.58)); }
+
+/* pointing at a game: black at once, then the picture is drawn in from the top down with a soft edge */
+@property --wp { syntax: "<percentage>"; inherits: false; initial-value: 0%; }
+body.has-wall::after { content: ""; position: fixed; inset: 0; z-index: -4; pointer-events: none; background: #000; }
+body.wall-dark .wall.shown:not(.reveal) { opacity: 0; transition: opacity .45s ease; }
+body.wall-on .wall.reveal { opacity: 1; transition: none; -webkit-mask-image: linear-gradient(180deg, #000 calc(var(--wp) - 16%), transparent var(--wp)); mask-image: linear-gradient(180deg, #000 calc(var(--wp) - 16%), transparent var(--wp)); animation: wallReveal 2s cubic-bezier(.35,.1,.25,1) both; }
+@keyframes wallReveal { from { --wp: 0%; } to { --wp: 116%; } }
+body.no-anim .wall.reveal { animation: none; -webkit-mask-image: none; mask-image: none; }

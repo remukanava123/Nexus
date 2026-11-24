@@ -171,6 +171,7 @@ function renderHome() {
           <div class="hero-actions">
             <button class="play-btn" data-launch="${esc(heroItem.id)}">${PLAY} ${isRunning(heroItem.id) ? 'Open' : 'Play'}</button>
             <button class="btn glass" data-pick title="Spin the wheel (Ctrl+R)">🎲 Pick for me</button>
+            ${fresh ? `<button class="btn glass wall-btn${s.wallpaper !== false ? ' on' : ''}" data-wall-toggle title="${s.wallpaper !== false ? 'Turn the wallpaper off' : 'Turn the wallpaper on'}">🖼️</button>` : ''}
           </div>
         </div>
       </div>`;
@@ -516,6 +517,173 @@ function updatePageBg() {
   if (!bg) return;
   const hero = recent().find((i) => i.type === 'game' && i.cover) || ofType('game').find((g) => g.cover);
   bg.style.backgroundImage = prefs.settings.bgStyle === 'art' && hero ? cssUrl(hero.cover) : 'none';
+  updateWall();
+}
+
+// The wallpaper behind the whole app (new layout): wide art of the game you played last.
+// A small or stretched picture looks pixelated once it fills the window, so every candidate is measured first and
+// only one that is big and wide enough is used. With none, there is no wallpaper and the normal background stays.
+const WALL_MIN_W = 1600, WALL_MIN_H = 900, WALL_MIN_RATIO = 1.5;
+const wallCache = new Map(); // game id -> url of an approved picture, or ''
+function measureImage(url) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const t = setTimeout(() => resolve(null), 10000);
+    img.onload = () => { clearTimeout(t); resolve({ w: img.naturalWidth, h: img.naturalHeight }); };
+    img.onerror = () => { clearTimeout(t); resolve(null); };
+    img.src = url;
+  });
+}
+async function resolveWall(it) {
+  if (wallCache.has(it.id)) return wallCache.get(it.id);
+  const urls = [];
+  const gk = typeof Gacha !== 'undefined' && Gacha.keyFor(it);
+  const gd = gk && prefs.gachaBanners && prefs.gachaBanners[gk];
+  if (gd && gd.art) urls.push(gd.art);
+  try {
+    const info = await window.api.getInfo(it.id);
+    for (const s of ((info && info.screenshots) || []).slice(0, 6)) if (s && s.full) urls.push(s.full);
+  } catch { /* offline */ }
+  let best = '', bestArea = 0;
+  for (const u of urls) {
+    const m = await measureImage(u);
+    if (!m || m.w < WALL_MIN_W || m.h < WALL_MIN_H || m.w / m.h < WALL_MIN_RATIO) continue;
+    if (m.w * m.h > bestArea) { best = u; bestArea = m.w * m.h; }
+    if (bestArea >= 1920 * 1080) break; // good enough, stop downloading
+  }
+  wallCache.set(it.id, best);
+  return best;
+}
+// Two layers take turns: the new picture fades in slowly over the old one (the slow fade also hides how long a picture takes to load),
+// and the old one is only removed once the new one is fully in, so there is never a dip to the plain background.
+let wallFor = null, wallBase = '', wallUrl = '', wallCur = -1;
+// `reveal` is for pointing at a game: the screen has gone black (wall-dark) and the new picture is drawn in from the top down,
+// instead of one picture cross-fading into another after a wait
+function wallShow(url, reveal) {
+  const layers = [$('#wall'), $('#wall2')];
+  if (!layers[0]) return;
+  if (url === wallUrl) { document.body.classList.remove('wall-dark'); return; }
+  wallUrl = url;
+  clearTimeout(wallShow.t);
+  if (url && reveal) {
+    const n = wallCur === 0 ? 1 : 0, o = 1 - n;
+    layers[n].classList.remove('reveal');
+    layers[n].style.backgroundImage = cssUrl(url);
+    void layers[n].offsetWidth; // restart the animation
+    layers[n].classList.add('top', 'shown', 'reveal');
+    layers[o].classList.remove('top', 'shown');
+    wallCur = n;
+    document.body.classList.add('has-wall');
+    wallTint(url);
+    wallShow.t = setTimeout(() => { layers[n].classList.remove('reveal'); document.body.classList.remove('wall-dark'); }, 2100);
+    return;
+  }
+  document.body.classList.remove('wall-dark');
+  layers[0].classList.remove('reveal'); layers[1].classList.remove('reveal');
+  if (!url) {
+    layers.forEach((l) => l.classList.remove('shown', 'top'));
+    wallCur = -1;
+    document.body.classList.remove('has-wall');
+    wallTint('');
+    return;
+  }
+  const n = wallCur === 0 ? 1 : 0, o = 1 - n;
+  layers[n].style.backgroundImage = cssUrl(url);
+  layers[n].classList.add('top', 'shown');
+  layers[o].classList.remove('top');
+  wallShow.t = setTimeout(() => layers[o].classList.remove('shown'), 1900);
+  wallCur = n;
+  document.body.classList.add('has-wall');
+  wallTint(url);
+}
+
+// The main colour of a picture, for lighting up buttons. Needs a picture the page may read; if the site doesn't allow that, there is no tint.
+const tintCache = new Map();
+function sampleColour(url) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    const t = setTimeout(() => resolve(null), 10000);
+    img.onerror = () => { clearTimeout(t); resolve(null); };
+    img.onload = () => {
+      clearTimeout(t);
+      try {
+        const cv = document.createElement('canvas');
+        cv.width = 32; cv.height = 18;
+        const cx = cv.getContext('2d', { willReadFrequently: true });
+        cx.drawImage(img, 0, 0, 32, 18);
+        const d = cx.getImageData(0, 0, 32, 18).data;
+        let wsum = 0, sx = 0, sy = 0, ss = 0;
+        for (let i = 0; i < d.length; i += 4) {
+          const [h, s, l] = rgbToHsl([d[i], d[i + 1], d[i + 2]]);
+          const w = l > 0.12 && l < 0.88 ? s * s : 0; // dull and very dark or bright pixels say little about the art's colour
+          sx += Math.cos(h * Math.PI / 180) * w; sy += Math.sin(h * Math.PI / 180) * w; ss += s * w; wsum += w;
+        }
+        if (wsum < 0.5) return resolve(null); // a grey picture: keep the usual accent
+        const hue = (Math.atan2(sy, sx) * 180 / Math.PI + 360) % 360;
+        resolve(hslToHex(hue, Math.max(0.55, Math.min(0.85, ss / wsum)), 0.62));
+      } catch { resolve(null); }
+    };
+    img.src = url;
+  });
+}
+async function wallTint(url) {
+  const st = document.body.style;
+  const clear = () => ['--accent', '--accent-2', '--accent-rgb', '--on-accent'].forEach((k) => st.removeProperty(k));
+  if (!url || prefs.settings.wallTint === false) return clear();
+  let hex = tintCache.get(url);
+  if (hex === undefined) { hex = await sampleColour(url); tintCache.set(url, hex); }
+  if (url !== wallUrl || prefs.settings.wallTint === false) return; // the picture changed while it was measured
+  if (!hex) return clear();
+  const rgb = hexToRgb(hex), [h, s, l] = rgbToHsl(rgb);
+  st.setProperty('--accent', hex);
+  st.setProperty('--accent-2', hslToHex(h + 28, s, Math.min(0.72, l + 0.04)));
+  st.setProperty('--accent-rgb', rgb.join(', '));
+  const lum = (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255;
+  st.setProperty('--on-accent', lum > 0.62 ? '#10131a' : '#ffffff');
+}
+
+async function updateWall() {
+  if (!$('#wall')) return;
+  const on = document.body.classList.contains('wall-on');
+  const it = on && (recent().find((i) => i.type === 'game') || ofType('game')[0]);
+  if (!it) { wallFor = null; wallBase = ''; wallShow(''); return; }
+  if (wallFor === it.id) { if (wallUrl) wallTint(wallUrl); return; } // (a setting may have changed)
+  wallFor = it.id;
+  const url = await resolveWall(it);
+  if (wallFor !== it.id) return; // another game became the latest while this loaded
+  wallBase = url;
+  wallShow(url);
+}
+
+// Pointing at a game on the page fades the wallpaper to that game's art (after a short pause, so sweeping across covers does nothing),
+// and it fades back once the pointer leaves the covers.
+let wallHoverId = '', wallHoverT = 0;
+function wallBackSoon() { clearTimeout(wallHoverT); wallHoverId = ''; if (wallUrl !== wallBase || document.body.classList.contains('wall-dark')) wallHoverT = setTimeout(() => wallShow(wallBase), 1100); }
+{
+  const area = document.getElementById('content');
+  area.addEventListener('mouseover', (e) => {
+    if (!document.body.classList.contains('has-wall') || prefs.settings.wallHover === false) return;
+    const g = e.target.closest('.game[data-id]');
+    if (!g) return wallBackSoon();
+    const id = g.dataset.id;
+    if (id === wallHoverId) return;
+    clearTimeout(wallHoverT);
+    wallHoverId = id;
+    wallHoverT = setTimeout(async () => {
+      const it = items.find((i) => i.id === id);
+      if (!it) return;
+      const calm = document.body.classList.contains('no-anim'); // animations off: a plain cross-fade
+      // a game already known to have no usable art, or the one already showing, changes nothing
+      if (wallCache.has(id) && (!wallCache.get(id) || wallCache.get(id) === wallUrl)) return;
+      if (!calm) document.body.classList.add('wall-dark'); // black at once, while the picture is checked and loaded
+      const url = await resolveWall(it);
+      if (url && !calm) await new Promise((r) => { const im = new Image(); im.onload = im.onerror = r; im.src = url; if (im.decode) im.decode().then(r, r); }); // fully loaded before it is drawn in
+      if (wallHoverId !== id) return; // moved on: wallBackSoon brings the old picture back
+      wallShow(url || wallBase, !!url && !calm);
+    }, 450);
+  });
+  area.addEventListener('mouseleave', wallBackSoon);
 }
 
 // Cover art can arrive (from the web) while a game's page is already open
@@ -1039,6 +1207,7 @@ content.addEventListener('click', (e) => {
   const goto = t.closest('[data-goto]');
   if (goto) return setView(goto.dataset.goto);
   if (t.closest('[data-pick]')) return openPicker();
+  if (t.closest('[data-wall-toggle]')) { saveSetting('wallpaper', prefs.settings.wallpaper === false).then(render); return; }
   const open = t.closest('[data-open]');
   if (open) return openDetail(open.dataset.open);
   const filter = t.closest('[data-filter]');

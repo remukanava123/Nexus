@@ -48,6 +48,7 @@ async function finishWelcome() {
   const tag = document.getElementById('obTag');
   if (tag && tag.value.trim() !== (prefs.settings.owTag || '')) await saveSetting('owTag', tag.value.trim());
   await saveSetting('welcomeDone', true);
+  await saveSetting('wallAsked', true); // a new install meets the wallpaper from the start; no need to ask
   closeOnboard();
   window.api.whatsNewSeen(); // a fresh install has nothing new to read
 }
@@ -84,7 +85,7 @@ function showWhatsNew(n) {
     <div class="ob-body"><small class="ob-ver">Nexus ${esc(n.version)}${n.from ? ` · updated from ${esc(n.from)}` : ''}</small><h1>${esc(n.title || 'What’s new')}</h1>
       <div class="ob-news">${(n.items || []).map(([icon, title, text]) => `<div><span>${icon}</span><div><b>${esc(title)}</b><small>${esc(text)}</small></div></div>`).join('')}</div></div>
     <div class="ob-foot"><button class="link-btn" data-ob-link>All releases ↗</button><div></div><button class="play-btn small" data-ob-done>Got it</button></div></div>`;
-  const done = () => { closeOnboard(); window.api.whatsNewSeen(); onboard.removeEventListener('click', onClick); };
+  const done = () => { closeOnboard(); window.api.whatsNewSeen(); onboard.removeEventListener('click', onClick); askWallpaper(); };
   const onClick = (e) => {
     if (e.target.closest('[data-ob-done]')) done();
     else if (e.target.closest('[data-ob-link]')) window.api.openExternal('https://github.com/remukanava123/Nexus/releases');
@@ -97,6 +98,29 @@ async function startOnboarding() {
   if (!prefs.settings.welcomeDone) return showWelcome();
   const n = await window.api.whatsNew().catch(() => null);
   if (n) showWhatsNew(n);
+  else askWallpaper();
+}
+
+// Once, after the update that brought the wallpaper: it is already on behind the card, so the choice is to keep it or not,
+// and the card says where to change it later.
+function askWallpaper() {
+  if (prefs.settings.wallAsked || prefs.settings.layout === 'classic') return;
+  onboard.hidden = false;
+  onboard.innerHTML = `<div class="ob-card">
+    <div class="ob-body"><div class="ob-hero">🖼️</div><h1>Try the new wallpaper?</h1>
+      <p class="ob-lead">The art of the game you played last now sits behind Nexus, fades to whichever game you point at, and lights up the buttons in that game’s colours.</p>
+      <p class="ob-small">It’s on now, and you’ll see it as soon as you close this. Change your mind any time with the 🖼️ button on the Home banner, or in Settings → Appearance → Wallpaper.</p></div>
+    <div class="ob-foot"><button class="link-btn" data-wall-ans="off">Turn it off</button><div></div><button class="play-btn small" data-wall-ans="on">Keep it</button></div></div>`;
+  const onClick = async (e) => {
+    const b = e.target.closest('[data-wall-ans]');
+    if (!b) return;
+    onboard.removeEventListener('click', onClick);
+    await saveSetting('wallAsked', true);
+    if (b.dataset.wallAns === 'off') await saveSetting('wallpaper', false);
+    closeOnboard();
+    if (view === 'home') render();
+  };
+  onboard.addEventListener('click', onClick);
 }
 
 onboard.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !onboard.hidden && !prefs.settings.welcomeDone) e.stopPropagation(); });

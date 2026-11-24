@@ -11,6 +11,9 @@ const SETTINGS_SCHEMA = [
     { key: 'density', label: 'Density', type: 'select', options: [['comfortable', 'Comfortable'], ['compact', 'Compact']] },
     { key: 'fontFamily', label: 'Font', type: 'select', options: [['segoe', 'Segoe UI (default)'], ['system', 'System'], ['rounded', 'Rounded'], ['mono', 'Monospace'], ['serif', 'Serif']] },
     { key: 'bgStyle', label: 'Page background', type: 'select', options: [['none', 'Plain'], ['glow', 'Accent glow'], ['art', 'Blurred art of your last game']] },
+    { key: 'wallpaper', label: 'Wallpaper of your last game (new layout)', type: 'toggle' },
+    { key: 'wallHover', label: 'Wallpaper follows the game you point at', type: 'toggle', when: (s) => s.wallpaper !== false },
+    { key: 'wallTint', label: 'Light up buttons in the game’s colour', type: 'toggle', when: (s) => s.wallpaper !== false },
     { key: 'bgStrength', label: 'Background strength', type: 'range', min: 0, max: 100, step: 5, unit: '%', when: (s) => s.bgStyle !== 'none' },
     { key: 'animations', label: 'Animations', desc: 'Hover effects, transitions and confetti', type: 'toggle' },
     { key: 'blur', label: 'Blur effects', desc: 'Turn off if the app feels slow', type: 'toggle' },
@@ -169,7 +172,7 @@ if (window.api.platform === 'linux') {
 }
 
 // Rows for fine-tuning. Everything else is on the Basic tab; the Home page and Desktop sections are advanced as a whole.
-const ADVANCED_ROWS = new Set(['gachaBuilds', 'radius', 'uiScale', 'density', 'bgStyle', 'bgStrength', 'blur', 'showBadges', 'showTitles',
+const ADVANCED_ROWS = new Set(['gachaBuilds', 'radius', 'uiScale', 'density', 'bgStyle', 'wallpaper', 'wallHover', 'wallTint', 'bgStrength', 'blur', 'showBadges', 'showTitles',
   'coverShape', 'hoverEffect', 'cardGap', 'showFavStar', 'showRunningBadge',
   'sidebarColors', 'navApps', 'navWeb', 'navFavorites', 'navStats', 'navNews', 'navClips', 'navBarca', 'clipsFolder',
   'groupByLauncher', 'rescanOnShow', 'searchApps', 'searchWeb', 'coverTips', 'coverArt', 'hoursFormat', 'weekStart', 'toastCorner', 'toastSeconds',
